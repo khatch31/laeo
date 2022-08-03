@@ -206,7 +206,7 @@ class PointImageFixedGoal(PointEnvFixedGoal):
   def __init__(self, *args, **kwargs):
     self._dist = []
     self._dist_vec = []
-    super(PointImage, self).__init__(*args, **kwargs)
+    super(PointImageFixedGoal, self).__init__(*args, **kwargs)
     self.observation_space = gym.spaces.Box(
         low=np.full((64*64*6), 0),
         high=np.full((64*64*6), 255),
@@ -223,7 +223,7 @@ class PointImageFixedGoal(PointEnvFixedGoal):
     return self._get_obs()
 
   def step(self, action):
-    super(PointImage, self).step(action)
+    super(PointImageFixedGoal, self).step(action)
     dist = np.linalg.norm(self.state - self.goal)
     self._dist.append(dist)
     s = self._get_obs()
