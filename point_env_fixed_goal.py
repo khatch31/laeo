@@ -112,6 +112,7 @@ class PointEnvFixedGoal(gym.Env):
       self._walls = WALLS[walls]
     (height, width) = self._walls.shape
     self._height = height
+    self._dist = []
     self._width = width
     self._action_noise = 0.01
     self.action_space = gym.spaces.Box(
@@ -178,6 +179,7 @@ class PointEnvFixedGoal(gym.Env):
     # self.goal = self._sample_empty_state()
     self.goal = self._sample_goal_state()
     self.state = self._sample_empty_state()
+    self._dist = []
     return self._get_obs()
 
   def _discretize_state(self, state, resolution=1.0):
@@ -214,6 +216,7 @@ class PointEnvFixedGoal(gym.Env):
     done = False
     obs = self._get_obs()
     dist = np.linalg.norm(self.goal - self.state)
+    self._dist.append(dist)
     rew = float(dist < 2.0)
     return obs, rew, done, {}
 
