@@ -112,6 +112,7 @@ class PointEnvFixedGoal(gym.Env):
       self._walls = WALLS[walls]
     (height, width) = self._walls.shape
     self._height = height
+    self._dist = []
     self._width = width
     self._action_noise = 0.01
     self.action_space = gym.spaces.Box(
@@ -124,6 +125,10 @@ class PointEnvFixedGoal(gym.Env):
         dtype=np.float32)
     self.reset()
 
+  def render(self, mode= 'human', close=False):
+    """Same structure as the render functions in the gym APIs"""
+    return self._get_img(self.state)
+
   def _sample_empty_state(self):
     candidate_states = np.where(self._walls == 0)
     num_candidate_states = len(candidate_states[0])
@@ -134,6 +139,24 @@ class PointEnvFixedGoal(gym.Env):
     state += np.random.uniform(size=2)
     assert not self._is_blocked(state)
     return state
+
+  def _get_img(self, state):
+    """Including this here so that we can look at how the policy
+    is performing in the given environment"""
+    scale = 30
+    img = resize_walls(self.walls, scale)
+    img = 0.5 * (1 - img)
+    radius = 10
+    low_i, low_j = np.clip((state * scale).astype(int) - radius,
+                           [0, 0], img.shape)
+    high_i, high_j = np.clip((state * scale).astype(int) + radius,
+                             [0, 0], img.shape)
+    img[low_i:high_i, low_j:high_j] = 1
+    (h, w) = img.shape
+    img = (255 * img).astype(np.uint8)
+    img = scipy.ndimage.zoom(img, (64 / h, 64 / w), order=0)
+    img = np.stack([img, img, img], axis=-1)
+    return img
 
   def _get_obs(self):
     return np.concatenate([self.state, self.goal]).astype(np.float32)
@@ -156,6 +179,7 @@ class PointEnvFixedGoal(gym.Env):
     # self.goal = self._sample_empty_state()
     self.goal = self._sample_goal_state()
     self.state = self._sample_empty_state()
+    self._dist = []
     return self._get_obs()
 
   def _discretize_state(self, state, resolution=1.0):
@@ -192,6 +216,7 @@ class PointEnvFixedGoal(gym.Env):
     done = False
     obs = self._get_obs()
     dist = np.linalg.norm(self.goal - self.state)
+    self._dist.append(dist)
     rew = float(dist < 2.0)
     return obs, rew, done, {}
 
@@ -206,7 +231,7 @@ class PointImageFixedGoal(PointEnvFixedGoal):
   def __init__(self, *args, **kwargs):
     self._dist = []
     self._dist_vec = []
-    super(PointImage, self).__init__(*args, **kwargs)
+    super(PointImageFixedGoal, self).__init__(*args, **kwargs)
     self.observation_space = gym.spaces.Box(
         low=np.full((64*64*6), 0),
         high=np.full((64*64*6), 255),
@@ -222,8 +247,11 @@ class PointImageFixedGoal(PointEnvFixedGoal):
     self._dist.append(np.linalg.norm(self.state - self.goal))
     return self._get_obs()
 
+  def render(self, mode='human', close=False):
+    return self._get_img(self.state)
+
   def step(self, action):
-    super(PointImage, self).step(action)
+    super(PointImageFixedGoal, self).step(action)
     dist = np.linalg.norm(self.state - self.goal)
     self._dist.append(dist)
     s = self._get_obs()
