@@ -16,10 +16,16 @@
 # python3
 r"""Example running contrastive RL in JAX.
 
-
-export LD_LIBRARY_PATH=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
 
 python3 -u lp_contrastive_goals.py --lp_launch_type=local_mt
@@ -30,6 +36,8 @@ Run using multi-processing (required for image-based experiments):
 Run using multi-threading
   python lp_contrastive.py --lp_launch_type=local_mt
 
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
 
 """
 import functools
@@ -68,7 +76,7 @@ def get_program(params):
     # handled separately.
     params['num_actors'] = 0
 
-  config = contrastive.ContrastiveConfig(**params)
+  config = contrastive.ContrastiveConfigGoals(**params)
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)

@@ -38,6 +38,8 @@ import numpy as np
 import reverb
 import tqdm
 
+from contrastive.default_logger import make_default_logger
+
 
 ActorId = int
 AgentNetwork = Any
@@ -65,7 +67,8 @@ def get_default_logger_fn(
   """Creates an actor logger."""
 
   def create_logger(actor_id):
-    return loggers.make_default_logger(
+    return make_default_logger(
+        "/iris/u/khatch/contrastive_rl/results",
         'actor',
         save_data=(log_to_bigtable and actor_id == 0),
         time_delta=log_every,
@@ -98,7 +101,7 @@ def default_evaluator_factory(
 
     # Create logger and counter.
     counter = counting.Counter(counter, 'evaluator')
-    logger = loggers.make_default_logger('evaluator', log_to_bigtable,
+    logger = make_default_logger("/iris/u/khatch/contrastive_rl/results", 'evaluator', log_to_bigtable,
                                          steps_key='actor_steps')
 
     # Create the run loop and return it.
@@ -113,7 +116,8 @@ class CheckpointingConfig:
   # The maximum number of checkpoints to keep.
   max_to_keep: int = 1
   # Which directory to put the checkpoint in.
-  directory: str = '~/acme'
+  # directory: str = '~/acme'
+  directory: str = '/iris/u/khatch/contrastive_rl/checkpoints'
   # If True adds a UID to the checkpoint path, see
   # `paths.get_unique_id()` for how this UID is generated.
   add_uid: bool = True

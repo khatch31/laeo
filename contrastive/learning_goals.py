@@ -23,7 +23,7 @@ from acme.jax import networks as networks_lib
 from acme.jax import utils
 from acme.utils import counting
 from acme.utils import loggers
-from contrastive import config as contrastive_config
+from contrastive import config_goals as contrastive_config
 from contrastive import networks as contrastive_networks
 import jax
 import jax.numpy as jnp
@@ -31,6 +31,8 @@ import optax
 import reverb
 
 from jax.experimental import host_callback as hcb
+
+from contrastive.default_logger import make_default_logger
 
 class TrainingState(NamedTuple):
   """Contains training state for the learner."""
@@ -73,6 +75,7 @@ class ContrastiveLearnerGoals(acme.Learner):
       obs_to_goal: a function for extracting the goal coordinates.
       config: the experiment config file.
     """
+
     if config.add_mc_to_td:
       assert config.use_td
     adaptive_entropy_coefficient = config.entropy_coefficient is None
@@ -131,15 +134,26 @@ class ContrastiveLearnerGoals(acme.Learner):
         transitions = transitions._replace(observation=obs)
 
       # # rng, key = jax.random.split(key, 2)
-      success_states = jnp.array([[1, 4],
-                                  [1.1, 4.7],
-                                  [1.2, 4.1],
-                                  [1.3, 4.6],
-                                  [1.4, 4.2],
-                                  [1.5, 4.5],
-                                  [1.6, 4.3],
-                                  [1.7, 4.4],
-                                  [1.8, 4.8]], dtype=jnp.float32)
+      # success_states = jnp.array([[1, 4],
+      #                             [1.1, 4.7],
+      #                             [1.2, 4.1],
+      #                             [1.3, 4.6],
+      #                             [1.4, 4.2],
+      #                             [1.5, 4.5],
+      #                             [1.6, 4.3],
+      #                             [1.7, 4.4],
+      #                             [1.8, 4.8]], dtype=jnp.float32)
+      success_states = jnp.array([[0.95, 5.95],
+                                  [0.96, 5.96],
+                                  [0.97, 5.97],
+                                  [0.98, 5.98],
+                                  [0.99, 5.99],
+                                  [1, 5],
+                                  [1.01, 5.01],
+                                  [1.02, 5.02],
+                                  [1.03, 5.03],
+                                  [1.04, 5.04],
+                                  [1.05, 5.05]], dtype=jnp.float32)
 
 
       idxs = jax.random.randint(rng, (batch_size,), 0, success_states.shape[0])
@@ -371,7 +385,8 @@ class ContrastiveLearnerGoals(acme.Learner):
 
     # General learner book-keeping and loggers.
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.make_default_logger(
+    self._logger = logger or make_default_logger(
+        "/iris/u/khatch/contrastive_rl/results"
         'learner', asynchronous=True, serialize_fn=utils.fetch_devicearray,
         time_delta=10.0)
 
@@ -438,6 +453,7 @@ class ContrastiveLearnerGoals(acme.Learner):
 
     # Attempts to write the logs.
     self._logger.write({**metrics, **counts})
+
 
   def get_variables(self, names):
     variables = {

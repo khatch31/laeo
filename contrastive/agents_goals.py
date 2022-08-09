@@ -30,6 +30,8 @@ from contrastive import utils as contrastive_utils
 import dm_env
 
 
+from contrastive.default_logger import make_default_logger
+
 NetworkFactory = Callable[[specs.EnvironmentSpec],
                           networks.ContrastiveNetworks]
 
@@ -53,13 +55,14 @@ class DistributedContrastiveGoals(distributed_layout.DistributedLayout):
     assert config.max_episode_steps > 0
     assert config.obs_dim > 0
 
-    logger_fn = functools.partial(loggers.make_default_logger,
+    logger_fn = functools.partial(make_default_logger,
+                                  "/iris/u/khatch/contrastive_rl/results",
                                   'learner', log_to_bigtable,
                                   time_delta=log_every, asynchronous=True,
                                   serialize_fn=utils.fetch_devicearray,
                                   steps_key='learner_steps')
     contrastive_builder = builder_goals.ContrastiveBuilderGoals(config,
-                                                     logger_fn=logger_fn)                                        
+                                                     logger_fn=logger_fn)
     if evaluator_factories is None:
       eval_policy_factory = (
           lambda n: networks.apply_policy_and_sample(n, True))
