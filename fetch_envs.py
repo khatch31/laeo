@@ -58,6 +58,9 @@ class FetchReachEnv(reach.FetchReachEnv):
     g[start_index:end_index] = observation['desired_goal']
     return np.concatenate([s, g]).astype(np.float32)
 
+  def _sample_goal(self): ###===### ###---###
+      return np.array([1.4, 0.8, 0.6])
+
 
 class FetchPushEnv(push.FetchPushEnv):
   """Wrapper for the FetchPush environment."""
