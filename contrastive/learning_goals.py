@@ -133,27 +133,28 @@ class ContrastiveLearnerGoals(acme.Learner):
         obs = jnp.concatenate([s, new_g], axis=1)
         transitions = transitions._replace(observation=obs)
 
-      # # rng, key = jax.random.split(key, 2)
-      # success_states = jnp.array([[1, 4],
-      #                             [1.1, 4.7],
-      #                             [1.2, 4.1],
-      #                             [1.3, 4.6],
-      #                             [1.4, 4.2],
-      #                             [1.5, 4.5],
-      #                             [1.6, 4.3],
-      #                             [1.7, 4.4],
-      #                             [1.8, 4.8]], dtype=jnp.float32)
-      success_states = jnp.array([[0.95, 5.95],
-                                  [0.96, 5.96],
-                                  [0.97, 5.97],
-                                  [0.98, 5.98],
-                                  [0.99, 5.99],
-                                  [1, 5],
-                                  [1.01, 5.01],
-                                  [1.02, 5.02],
-                                  [1.03, 5.03],
-                                  [1.04, 5.04],
-                                  [1.05, 5.05]], dtype=jnp.float32)
+      # hcb.id_print(config.obs_dim, what="\n\nconfig.obs_dim")
+      # hcb.id_print(transitions.observation, what="transitions.observation")
+
+      # success_states = jnp.array([[0.95, 5.95],
+      #                             [0.96, 5.96],
+      #                             [0.97, 5.97],
+      #                             [0.98, 5.98],
+      #                             [0.99, 5.99],
+      #                             [1, 5],
+      #                             [1.01, 5.01],
+      #                             [1.02, 5.02],
+      #                             [1.03, 5.03],
+      #                             [1.04, 5.04],
+      #                             [1.05, 5.05]], dtype=jnp.float32)
+      success_states = jnp.array([[1.37, 0.77, 0.57, 0, 0, 0, 0, 0, 0, 0],
+                                  [1.38, 0.78, 0.58, 0, 0, 0, 0, 0, 0, 0],
+                                  [1.39, 0.79, 0.59, 0, 0, 0, 0, 0, 0, 0],
+                                  [1.4, 0.8, 0.6, 0, 0, 0, 0, 0, 0, 0],
+                                  [1.41, 0.81, 0.61, 0, 0, 0, 0, 0, 0, 0],
+                                  [1.42, 0.82, 0.62, 0, 0, 0, 0, 0, 0, 0],
+                                  [1.43, 0.83, 0.63, 0, 0, 0, 0, 0, 0, 0]],
+                                  dtype=jnp.float32)
 
 
       idxs = jax.random.randint(rng, (batch_size,), 0, success_states.shape[0])

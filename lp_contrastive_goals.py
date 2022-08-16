@@ -126,7 +126,8 @@ def main(_):
   #                             medium_play,medium_diverse,
   #                             large_play,large_diverse}
   # env_name = 'sawyer_window' ###===###
-  env_name = 'fixed-goal-point_Cross' ###---###
+  # env_name = 'fixed-goal-point_Cross' ###---###
+  env_name = "fetch_reach"
   params = {
       'seed': 0,
       'use_random_actor': True,
