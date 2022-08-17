@@ -46,7 +46,7 @@ def make_default_logger(
   loggers = [terminal_logger]
 
   if save_data:
-    csv_logger = csv.CSVLogger(directory_or_file=logdir, label=label)
+    csv_logger = csv.CSVLogger(directory_or_file=logdir, label=label, add_uid=False)
     loggers.append(csv_logger)
     loggers.append(tf_summary.TFSummaryLogger(os.path.dirname(csv_logger._file.name), label=label))
 

@@ -61,7 +61,8 @@ class ContrastiveLearnerGoals(acme.Learner):
       counter,
       logger,
       obs_to_goal,
-      config):
+      config,
+      expert_goals): ###===### ###---###
     """Initialize the Contrastive RL learner.
 
     Args:
@@ -75,6 +76,8 @@ class ContrastiveLearnerGoals(acme.Learner):
       obs_to_goal: a function for extracting the goal coordinates.
       config: the experiment config file.
     """
+
+    expert_goals = jnp.array(expert_goals, dtype=jnp.float32)
 
     if config.add_mc_to_td:
       assert config.use_td
@@ -133,53 +136,11 @@ class ContrastiveLearnerGoals(acme.Learner):
         obs = jnp.concatenate([s, new_g], axis=1)
         transitions = transitions._replace(observation=obs)
 
-      # hcb.id_print(config.obs_dim, what="\n\nconfig.obs_dim")
-      # hcb.id_print(transitions.observation, what="transitions.observation")
-
-      # success_states = jnp.array([[0.95, 5.95],
-      #                             [0.96, 5.96],
-      #                             [0.97, 5.97],
-      #                             [0.98, 5.98],
-      #                             [0.99, 5.99],
-      #                             [1, 5],
-      #                             [1.01, 5.01],
-      #                             [1.02, 5.02],
-      #                             [1.03, 5.03],
-      #                             [1.04, 5.04],
-      #                             [1.05, 5.05]], dtype=jnp.float32)
-      success_states = jnp.array([[1.37, 0.77, 0.57, 0, 0, 0, 0, 0, 0, 0],
-                                  [1.38, 0.78, 0.58, 0, 0, 0, 0, 0, 0, 0],
-                                  [1.39, 0.79, 0.59, 0, 0, 0, 0, 0, 0, 0],
-                                  [1.4, 0.8, 0.6, 0, 0, 0, 0, 0, 0, 0],
-                                  [1.41, 0.81, 0.61, 0, 0, 0, 0, 0, 0, 0],
-                                  [1.42, 0.82, 0.62, 0, 0, 0, 0, 0, 0, 0],
-                                  [1.43, 0.83, 0.63, 0, 0, 0, 0, 0, 0, 0]],
-                                  dtype=jnp.float32)
-
-
-      idxs = jax.random.randint(rng, (batch_size,), 0, success_states.shape[0])
-      # new_goals = jax.random.choice(rng, success_states, size=batch_size)
-      new_goals = success_states[idxs]
-      # hcb.id_print(idxs, what="\n\nidxs")
-      # hcb.id_print(new_goals.shape, what="new_goals.shape")
-      # hcb.id_print(new_goals, what="new_goals")
-      states, old_goals = jnp.split(transitions.observation, [config.obs_dim], axis=1)
-      # hcb.id_print(transitions.observation.shape, what="transitions.observation.shape")
-      # hcb.id_print(states.shape, what="states.shape")
-      # hcb.id_print(states, what="states")
-      # hcb.id_print(old_goals.shape, what="old_goals.shape")
-      del old_goals
-      #
-      obs = jnp.concatenate([states, new_goals], axis=1)
-      transitions = transitions._replace(observation=obs)
-      # hcb.id_print(transitions.observation, what="transitions.observation")
-      # hcb.id_print(transitions.observation.shape, what="transitions.observation.shape")
-
-
       I = jnp.eye(batch_size)  # pylint: disable=invalid-name
+      # hcb.id_print(transitions.observation, what="\n\transitions.observation")
+      # hcb.id_print(transitions.observation.shape, what="transitions.observation.shape")
       logits = networks.q_network.apply(
           q_params, transitions.observation, transitions.action)
-
 
 
       if config.use_td:
@@ -271,35 +232,59 @@ class ContrastiveLearnerGoals(acme.Learner):
                    alpha,
                    transitions,
                    key,
+                   expert_goals,
                    ):
       obs = transitions.observation
-      if config.use_gcbc:
+      if config.use_gcbc: # Just does behavioral cloning here?
         dist_params = networks.policy_network.apply(
             policy_params, obs)
         log_prob = networks.log_prob(dist_params, transitions.action)
         actor_loss = -1.0 * jnp.mean(log_prob)
       else:
         state = obs[:, :config.obs_dim]
-        goal = obs[:, config.obs_dim:] * 0
+        # goal = obs[:, config.obs_dim:]
+        actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
+
+        batch_size = obs.shape[0]
+        idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
+        critic_goal = expert_goals[idxs]
+        # hcb.id_print(actor_goal, what="\n\nactor_goal")
+        # hcb.id_print(actor_goal.shape, what="actor_goal.shape")
+        # hcb.id_print(idxs, what="idxs")
+        # hcb.id_print(critic_goal, what="critic_goal")
+        # hcb.id_print(critic_goal.shape, what="critic_goal.shape")
 
         if config.random_goals == 0.0:
           new_state = state
-          new_goal = goal
+          # new_goal = goal
+          new_actor_goal = actor_goal
+          new_critic_goal = critic_goal
         elif config.random_goals == 0.5:
           new_state = jnp.concatenate([state, state], axis=0)
-          new_goal = jnp.concatenate([goal, jnp.roll(goal, 1, axis=0)], axis=0)
+          # new_goal = jnp.concatenate([goal, jnp.roll(goal, 1, axis=0)], axis=0)
+          new_actor_goal = jnp.concatenate([actor_goal, jnp.roll(actor_goal, 1, axis=0)], axis=0)
+          new_critic_goal = jnp.concatenate([critic_goal, jnp.roll(critic_goal, 1, axis=0)], axis=0)
         else:
           assert config.random_goals == 1.0
           new_state = state
-          new_goal = jnp.roll(goal, 1, axis=0)
+          # new_goal = jnp.roll(goal, 1, axis=0)
+          new_actor_goal = jnp.roll(actor_goal, 1, axis=0)
+          new_critic_goal = jnp.roll(critic_goal, 1, axis=0)
 
-        new_obs = jnp.concatenate([new_state, new_goal], axis=1)
+        # new_obs = jnp.concatenate([new_state, new_goal], axis=1)
+        new_actor_obs = jnp.concatenate([new_state, new_actor_goal], axis=1)
+        # hcb.id_print(new_actor_obs, what="new_actor_obs")
+        # hcb.id_print(new_actor_obs.shape, what="new_actor_obs.shape")
         dist_params = networks.policy_network.apply(
-            policy_params, new_obs)
+            policy_params, new_actor_obs)
         action = networks.sample(dist_params, key)
         log_prob = networks.log_prob(dist_params, action)
+
+        new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
+        # hcb.id_print(new_critic_obs, what="new_critic_obs")
+        # hcb.id_print(new_critic_obs.shape, what="new_critic_obs.shape")
         q_action = networks.q_network.apply(
-            q_params, new_obs, action)
+            q_params, new_critic_obs, action)
         if len(q_action.shape) == 3:  # twin q trick
           assert q_action.shape[2] == 2
           q_action = jnp.min(q_action, axis=-1)
@@ -331,7 +316,7 @@ class ContrastiveLearnerGoals(acme.Learner):
             transitions, key_critic)
 
       actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
-                                           alpha, transitions, key_actor)
+                                           alpha, transitions, key_actor, expert_goals)
 
       # Apply policy gradients
       actor_update, policy_optimizer_state = policy_optimizer.update(
@@ -387,7 +372,7 @@ class ContrastiveLearnerGoals(acme.Learner):
     # General learner book-keeping and loggers.
     self._counter = counter or counting.Counter()
     self._logger = logger or make_default_logger(
-        "/iris/u/khatch/contrastive_rl/results"
+        "~/acme",
         'learner', asynchronous=True, serialize_fn=utils.fetch_devicearray,
         time_delta=10.0)
 

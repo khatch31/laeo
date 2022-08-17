@@ -28,7 +28,10 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastiv
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
 
-python3 -u lp_contrastive_goals.py --lp_launch_type=local_mt
+python3 -u lp_contrastive_goals.py \
+--lp_launch_type=local_mt \
+--env_name=fetch_reach \
+--logdir=/iris/u/khatch/contrastive_rl/trash_results
 
 Run using multi-processing (required for image-based experiments):
   python lp_contrastive.py --lp_launch_type=local_mp
@@ -49,8 +52,12 @@ import contrastive
 from contrastive import utils as contrastive_utils
 import launchpad as lp
 
+import os
+
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
+flags.DEFINE_string('env_name', None, 'Env_name.')
+flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
 
 
 @functools.lru_cache()
@@ -97,6 +104,9 @@ def get_program(params):
       use_image_obs=config.use_image_obs,
       hidden_layer_sizes=config.hidden_layer_sizes)
 
+  expert_goals = environment.get_expert_goals()
+  print("\nexpert_goals:\n", expert_goals)
+  logdir = os.path.join(FLAGS.logdir, params["env_name"], f"seed_{seed}")
   agent = contrastive.DistributedContrastiveGoals(
       seed=seed,
       environment_factory=env_factory_no_extra,
@@ -104,7 +114,11 @@ def get_program(params):
       config=config,
       num_actors=config.num_actors,
       log_to_bigtable=True,
-      max_number_of_steps=config.max_number_of_steps)
+      max_number_of_steps=config.max_number_of_steps,
+      expert_goals=expert_goals,
+      logdir=logdir)
+  print("Done with agent init.")
+
   return agent.build()
 
 
@@ -126,8 +140,8 @@ def main(_):
   #                             medium_play,medium_diverse,
   #                             large_play,large_diverse}
   # env_name = 'sawyer_window' ###===###
-  # env_name = 'fixed-goal-point_Cross' ###---###
-  env_name = "fetch_reach"
+  env_name = 'fixed-goal-point_Cross' ###---###
+  # env_name = "fetch_reach"
   params = {
       'seed': 0,
       'use_random_actor': True,
@@ -190,6 +204,9 @@ def main(_):
         'samples_per_insert_tolerance_rate': 1.0,
         'hidden_layer_sizes': (32, 32),
     })
+
+  if FLAGS.env_name:
+      params["env_name"] = FLAGS.env_name
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.

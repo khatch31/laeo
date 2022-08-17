@@ -48,6 +48,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       self,
       config,
       logger_fn = lambda: None,
+      expert_goals=None,
   ):
     """Creates a contrastive RL learner, a behavior policy and an eval actor.
 
@@ -65,6 +66,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       dataset,
       replay_client = None,
       counter = None,
+      expert_goals=None, ###===### ###---###
   ):
     # Create optimizers
     policy_optimizer = optax.adam(
@@ -81,7 +83,8 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
         obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,
                                       start_index=self._config.start_index,
                                       end_index=self._config.end_index),
-        config=self._config)
+        config=self._config,
+        expert_goals=expert_goals) ###===### ###---###
 
   def make_actor(
       self,

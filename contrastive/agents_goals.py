@@ -35,6 +35,7 @@ from contrastive.default_logger import make_default_logger
 NetworkFactory = Callable[[specs.EnvironmentSpec],
                           networks.ContrastiveNetworks]
 
+import os
 
 class DistributedContrastiveGoals(distributed_layout.DistributedLayout):
   """Distributed program definition for contrastive RL."""
@@ -50,19 +51,25 @@ class DistributedContrastiveGoals(distributed_layout.DistributedLayout):
       log_to_bigtable = False,
       log_every = 10.0,
       evaluator_factories = None,
+      expert_goals=None,
+      logdir=None,
   ):
     # Check that the environment-specific parts of the config have been set.
     assert config.max_episode_steps > 0
     assert config.obs_dim > 0
 
+    self._expert_goals = expert_goals
+    self._logdir = logdir
+
     logger_fn = functools.partial(make_default_logger,
-                                  "/iris/u/khatch/contrastive_rl/results",
+                                  self._logdir,
                                   'learner', log_to_bigtable,
                                   time_delta=log_every, asynchronous=True,
                                   serialize_fn=utils.fetch_devicearray,
                                   steps_key='learner_steps')
     contrastive_builder = builder_goals.ContrastiveBuilderGoals(config,
                                                      logger_fn=logger_fn)
+                                                     # expert_goals=expert_goals)
     if evaluator_factories is None:
       eval_policy_factory = (
           lambda n: networks.apply_policy_and_sample(n, True))
@@ -79,7 +86,8 @@ class DistributedContrastiveGoals(distributed_layout.DistributedLayout):
               network_factory=network_factory,
               policy_factory=eval_policy_factory,
               log_to_bigtable=log_to_bigtable,
-              observers=eval_observers)
+              observers=eval_observers,
+              logdir=self._logdir)
       ]
       if config.local:
         evaluator_factories = []
@@ -88,6 +96,7 @@ class DistributedContrastiveGoals(distributed_layout.DistributedLayout):
         contrastive_utils.DistanceObserver(obs_dim=config.obs_dim,
                                            start_index=config.start_index,
                                            end_index=config.end_index)]
+
     super().__init__(
         seed=seed,
         environment_factory=environment_factory,
@@ -100,6 +109,7 @@ class DistributedContrastiveGoals(distributed_layout.DistributedLayout):
         prefetch_size=config.prefetch_size,
         log_to_bigtable=log_to_bigtable,
         actor_logger_fn=distributed_layout.get_default_logger_fn(
-            log_to_bigtable, log_every),
+            log_to_bigtable, log_every, self._logdir),
         observers=actor_observers,
-        checkpointing_config=distributed_layout.CheckpointingConfig())
+        # checkpointing_config=distributed_layout.CheckpointingConfig(),
+        checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False),)

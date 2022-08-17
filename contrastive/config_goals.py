@@ -28,7 +28,7 @@ class ContrastiveConfigGoals:
 
   env_name: str = ''
   max_number_of_steps: int = 1_000_000
-  num_actors: int = 1 # 4
+  num_actors: int = 4
 
   # Loss options
   batch_size: int = 256
@@ -49,8 +49,8 @@ class ContrastiveConfigGoals:
   min_replay_size: int = 10000
   max_replay_size: int = 1000000
   replay_table_name: str = adders_reverb.DEFAULT_PRIORITY_TABLE
-  prefetch_size: int = 1 # 4
-  num_parallel_calls: Optional[int] = 1 # 4
+  prefetch_size: int = 4
+  num_parallel_calls: Optional[int] = 4
   samples_per_insert: float = 256
   # Rate to be used for the SampleToInsertRatio rate limitter tolerance.
   # See a formula in make_replay_tables for more details.
@@ -67,7 +67,7 @@ class ContrastiveConfigGoals:
   use_gcbc: bool = False
   use_image_obs: bool = False
   random_goals: float = 0.5
-  jit: bool = False # True
+  jit: bool = True
   add_mc_to_td: bool = False
   resample_neg_actions: bool = False
   bc_coef: float = 0.0

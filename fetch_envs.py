@@ -59,7 +59,14 @@ class FetchReachEnv(reach.FetchReachEnv):
     return np.concatenate([s, g]).astype(np.float32)
 
   def _sample_goal(self): ###===### ###---###
-      return np.array([1.4, 0.8, 0.6])
+      # return np.array([1.4, 0.8, 0.6])
+      return np.array([1.3, 0.3, 0.9])
+
+  def get_expert_goals(self):
+      goals = np.zeros((10, 10))
+      goals[:, :3] = self._sample_goal()
+      goals[:, :3] += np.random.normal(scale=0.01, size=(goals.shape[0], 3))
+      return goals
 
 
 class FetchPushEnv(push.FetchPushEnv):

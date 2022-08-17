@@ -63,12 +63,13 @@ EvaluatorFactory = Callable[[
 
 def get_default_logger_fn(
     log_to_bigtable = False,
-    log_every = 10):
+    log_every = 10,
+    logdir="~/acme"): ###===### ###---###
   """Creates an actor logger."""
 
   def create_logger(actor_id):
     return make_default_logger(
-        "/iris/u/khatch/contrastive_rl/results",
+        logdir, ###===### ###---###
         'actor',
         save_data=(log_to_bigtable and actor_id == 0),
         time_delta=log_every,
@@ -81,7 +82,8 @@ def default_evaluator_factory(
     network_factory,
     policy_factory,
     observers = (),
-    log_to_bigtable = False):
+    log_to_bigtable = False,
+    logdir="~/acme"): ###===### ###---###
   """Returns a default evaluator process."""
   def evaluator(
       random_key,
@@ -101,7 +103,7 @@ def default_evaluator_factory(
 
     # Create logger and counter.
     counter = counting.Counter(counter, 'evaluator')
-    logger = make_default_logger("/iris/u/khatch/contrastive_rl/results", 'evaluator', log_to_bigtable,
+    logger = make_default_logger(logdir, 'evaluator', log_to_bigtable,
                                          steps_key='actor_steps')
 
     # Create the run loop and return it.
@@ -112,15 +114,19 @@ def default_evaluator_factory(
 
 @dataclasses.dataclass
 class CheckpointingConfig:
-  """Configuration options for learner checkpointer."""
-  # The maximum number of checkpoints to keep.
-  max_to_keep: int = 1
-  # Which directory to put the checkpoint in.
+    def __init__(self, max_to_keep=1, directory="~/acme", add_uid=True):
+        self.max_to_keep = max_to_keep
+        self.directory = directory
+        self.add_uid = add_uid ###===### ###---###
+
+  # """Configuration options for learner checkpointer."""
+  # # The maximum number of checkpoints to keep.
+  # max_to_keep: int = 1
+  # # Which directory to put the checkpoint in.
   # directory: str = '~/acme'
-  directory: str = '/iris/u/khatch/contrastive_rl/checkpoints'
-  # If True adds a UID to the checkpoint path, see
-  # `paths.get_unique_id()` for how this UID is generated.
-  add_uid: bool = True
+  # # If True adds a UID to the checkpoint path, see
+  # # `paths.get_unique_id()` for how this UID is generated.
+  # add_uid: bool = True
 
 
 class DistributedLayout:
@@ -192,6 +198,7 @@ class DistributedLayout:
       random_key,
       replay,
       counter,
+      expert_goals, ###===### ###---###
   ):
     """The Learning part of the agent."""
 
@@ -249,7 +256,7 @@ class DistributedLayout:
     counter = counting.Counter(counter, 'learner')
 
     learner = self._builder.make_learner(random_key, networks, iterator, replay,
-                                         counter)
+                                         counter, expert_goals) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
@@ -312,7 +319,7 @@ class DistributedLayout:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter)
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()

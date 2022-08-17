@@ -246,6 +246,13 @@ class PointEnvFixedGoal(gym.Env):
   def walls(self):
     return self._walls
 
+  def get_expert_goals(self):
+      goals = np.zeros((10, 2)) + np.array([1, 5])
+      goals += np.random.normal(scale=0.01, size=goals.shape)
+      return goals
+
+
+
 
 class PointImageFixedGoal(PointEnvFixedGoal):
   """An image-based 2D navigation environment."""
