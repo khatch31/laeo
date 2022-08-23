@@ -19,7 +19,7 @@ def h_stitch(gif_list):
     number_of_frames = min(x.get_length() for x in gifs)
     print('[INFO] Minimum number of frames: {}'.format(number_of_frames))
     '''Creating the resultant GIF here'''
-    stitched_gif = imageio.get_writer(join(dirname(gif_list[0]), 'stitched_{}.gif').format(len(gif_list)))
+    stitched_gif = imageio.get_writer(join(dirname(gif_list[0]), 'stitched_{}_{}.gif').format(len(gif_list), np.random.randint(0, 100)))
     print('[INFO] GIF will be stored here: {}/stitched_{}.gif'.format(dirname(gif_list[0]), len(gif_list)))
     for _ in range(number_of_frames):
         '''Iterating through the frames of each GIF'''
@@ -69,4 +69,5 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('--gif_list', nargs='+')
     args = p.parse_args()
-    h_stitch(args.gif_list)
+    # h_stitch(args.gif_list)
+    v_stitch(args.gif_list)
