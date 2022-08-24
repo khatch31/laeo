@@ -30,7 +30,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
---env_name=fetch_reach \
+--env_name=fetch_reach-goals \
 --logdir=/iris/u/khatch/contrastive_rl/trash_results
 
 Run using multi-processing (required for image-based experiments):
@@ -38,10 +38,6 @@ Run using multi-processing (required for image-based experiments):
 
 Run using multi-threading
   python lp_contrastive.py --lp_launch_type=local_mt
-
-
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
-
 """
 import functools
 from typing import Any, Dict
@@ -54,10 +50,14 @@ import launchpad as lp
 
 import os
 
+from contrastive.wandb_logger import WANDBLogger
+
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
 flags.DEFINE_string('env_name', None, 'Env_name.')
 flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
+flags.DEFINE_string('description', "default", 'description.')
+flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
 
 
 @functools.lru_cache()
@@ -106,7 +106,16 @@ def get_program(params):
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
-  logdir = os.path.join(FLAGS.logdir, params["env_name"], f"seed_{seed}")
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner_goals", FLAGS.description, f"seed_{seed}")
+
+  group_name="_".join([params["env_name"], "learner_goals", FLAGS.description])
+  name=f"seed_{seed}"
+  wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
+                            params,
+                            group_name,
+                            name,
+                            FLAGS.project)
+
   agent = contrastive.DistributedContrastiveGoals(
       seed=seed,
       environment_factory=env_factory_no_extra,
@@ -116,7 +125,8 @@ def get_program(params):
       log_to_bigtable=True,
       max_number_of_steps=config.max_number_of_steps,
       expert_goals=expert_goals,
-      logdir=logdir)
+      logdir=logdir,
+      wandblogger=wandblogger)
   print("Done with agent init.")
 
   return agent.build()

@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlpointcross"
+#SBATCH --job-name="crlgpointcrossgdefault"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -42,5 +42,6 @@ ls -l /usr/local
 
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
+--project=contrastive_rl_goals \
 --env_name=fixed-goal-point_Cross \
 --logdir=/iris/u/khatch/contrastive_rl/results

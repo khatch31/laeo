@@ -16,20 +16,28 @@
 # python3
 r"""Example running contrastive RL in JAX.
 
-
-export LD_LIBRARY_PATH=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
 
-python3 -u lp_contrastive.py --lp_launch_type=local_mt
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
+
+
+python3 -u lp_contrastive.py \
+--lp_launch_type=local_mt \
+--env_name=fetch_reach \
+--logdir=/iris/u/khatch/contrastive_rl/trash_results
 
 Run using multi-processing (required for image-based experiments):
   python lp_contrastive.py --lp_launch_type=local_mp
 
 Run using multi-threading
   python lp_contrastive.py --lp_launch_type=local_mt
-
-
 """
 import functools
 from typing import Any, Dict
@@ -40,8 +48,16 @@ import contrastive
 from contrastive import utils as contrastive_utils
 import launchpad as lp
 
+import os
+
+from contrastive.wandb_logger import WANDBLogger
+
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
+flags.DEFINE_string('env_name', None, 'Env_name.')
+flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
+flags.DEFINE_string('description', "default", 'description.')
+flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
 
 
 @functools.lru_cache()
@@ -88,6 +104,16 @@ def get_program(params):
       use_image_obs=config.use_image_obs,
       hidden_layer_sizes=config.hidden_layer_sizes)
 
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner", FLAGS.description, f"seed_{seed}")
+
+  group_name="_".join([params["env_name"], "learner", FLAGS.description])
+  name=f"seed_{seed}"
+  wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
+                            params,
+                            group_name,
+                            name,
+                            FLAGS.project)
+
   agent = contrastive.DistributedContrastive(
       seed=seed,
       environment_factory=env_factory_no_extra,
@@ -95,7 +121,9 @@ def get_program(params):
       config=config,
       num_actors=config.num_actors,
       log_to_bigtable=True,
-      max_number_of_steps=config.max_number_of_steps)
+      max_number_of_steps=config.max_number_of_steps,
+      logdir=logdir,
+      wandblogger=wandblogger)
   return agent.build()
 
 
@@ -180,6 +208,9 @@ def main(_):
         'samples_per_insert_tolerance_rate': 1.0,
         'hidden_layer_sizes': (32, 32),
     })
+
+  if FLAGS.env_name:
+      params["env_name"] = FLAGS.env_name
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.

@@ -11,6 +11,7 @@ from acme.utils.loggers import tf_summary
 
 import os
 
+from contrastive.wandb_logger import WANDBLoggerLabelWrapper
 
 
 def make_default_logger(
@@ -22,6 +23,7 @@ def make_default_logger(
     print_fn: Optional[Callable[[str], None]] = None,
     serialize_fn: Optional[Callable[[Mapping[str, Any]], str]] = base.to_numpy,
     steps_key: str = 'steps',
+    wandblogger=None,
 ) -> base.Logger:
   """Makes a default Acme logger.
 
@@ -48,7 +50,11 @@ def make_default_logger(
   if save_data:
     csv_logger = csv.CSVLogger(directory_or_file=logdir, label=label, add_uid=False)
     loggers.append(csv_logger)
-    loggers.append(tf_summary.TFSummaryLogger(os.path.dirname(csv_logger._file.name), label=label))
+    loggers.append(tf_summary.TFSummaryLogger(os.path.join(logdir, "tf_logs"), label=label))
+
+    if wandblogger is not None:
+        wandbwrapper = WANDBLoggerLabelWrapper(wandblogger, label)
+        loggers.append(wandbwrapper)
 
   # Dispatch to all writers and filter Nones and by time.
   logger = aggregators.Dispatcher(loggers, serialize_fn)

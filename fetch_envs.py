@@ -58,14 +58,23 @@ class FetchReachEnv(reach.FetchReachEnv):
     g[start_index:end_index] = observation['desired_goal']
     return np.concatenate([s, g]).astype(np.float32)
 
+class FetchReachEnvGoals(FetchReachEnv):
+  def __init__(self, add_goal_noise=False):
+      super(FetchReachEnvGoals, self).__init__()
+      self._add_goal_noise = add_goal_noise
+
+
   def _sample_goal(self): ###===### ###---###
       # return np.array([1.4, 0.8, 0.6])
-      return np.array([1.3, 0.3, 0.9])
+      return np.array([1.3, 0.3, 0.9]) #, 0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
 
   def get_expert_goals(self):
       goals = np.zeros((10, 10))
+      goals[:, 3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
       goals[:, :3] = self._sample_goal()
-      goals[:, :3] += np.random.normal(scale=0.01, size=(goals.shape[0], 3))
+
+      if self._add_goal_noise:
+          goals += np.random.normal(scale=0.01, size=goals.shape)
       return goals
 
 

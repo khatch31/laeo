@@ -31,7 +31,6 @@ import optax
 import reverb
 
 from jax.experimental import host_callback as hcb
-
 from contrastive.default_logger import make_default_logger
 
 class TrainingState(NamedTuple):
@@ -374,7 +373,8 @@ class ContrastiveLearnerGoals(acme.Learner):
     self._logger = logger or make_default_logger(
         "~/acme",
         'learner', asynchronous=True, serialize_fn=utils.fetch_devicearray,
-        time_delta=10.0)
+        time_delta=10.0,
+        wandblogger=None)
 
     # Iterator on demonstration transitions.
     self._iterator = iterator

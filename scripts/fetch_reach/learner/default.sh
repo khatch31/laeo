@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlfetchreach"
+#SBATCH --job-name="crlfetchreachdefault"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -40,7 +40,8 @@ pwd
 ls -l /usr/local
 
 
-python3 -u lp_contrastive_goals.py \
+python3 -u lp_contrastive.py \
 --lp_launch_type=local_mt \
+--project=contrastive_rl_goals \
 --env_name=fetch_reach \
 --logdir=/iris/u/khatch/contrastive_rl/results

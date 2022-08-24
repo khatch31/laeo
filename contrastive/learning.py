@@ -30,6 +30,8 @@ import jax.numpy as jnp
 import optax
 import reverb
 
+from jax.experimental import host_callback as hcb
+from contrastive.default_logger import make_default_logger
 
 class TrainingState(NamedTuple):
   """Contains training state for the learner."""
@@ -336,9 +338,11 @@ class ContrastiveLearner(acme.Learner):
 
     # General learner book-keeping and loggers.
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.make_default_logger(
+    self._logger = logger or make_default_logger(
+        "~/acme",
         'learner', asynchronous=True, serialize_fn=utils.fetch_devicearray,
-        time_delta=10.0)
+        time_delta=10.0,
+        wandblogger=None)
 
     # Iterator on demonstration transitions.
     self._iterator = iterator

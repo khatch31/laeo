@@ -84,6 +84,14 @@ def load(env_name):
   elif env_name == 'fetch_reach':
     CLASS = fetch_envs.FetchReachEnv
     max_episode_steps = 50
+  elif env_name == "fetch_reach-goals":
+    CLASS = fetch_envs.FetchReachEnvGoals
+    kwargs["add_goal_noise"] = True
+    max_episode_steps = 50
+  elif env_name == 'fetch_reach-goals-no-noise':
+    CLASS = fetch_envs.FetchReachEnvGoals
+    kwargs["add_goal_noise"] = False
+    max_episode_steps = 50
   elif env_name == 'fetch_push':
     CLASS = fetch_envs.FetchPushEnv
     max_episode_steps = 50

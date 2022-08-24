@@ -133,7 +133,7 @@ class CheckpointingConfig:
   # add_uid: bool = True
 
 
-class DistributedLayout:
+class DistributedLayoutGoals:
   """Program definition for a distributed agent based on a builder."""
 
   def __init__(
@@ -202,6 +202,7 @@ class DistributedLayout:
       random_key,
       replay,
       counter,
+      expert_goals, ###===### ###---###
   ):
     """The Learning part of the agent."""
 
@@ -259,7 +260,7 @@ class DistributedLayout:
     counter = counting.Counter(counter, 'learner')
 
     learner = self._builder.make_learner(random_key, networks, iterator, replay,
-                                         counter) ###===### ###---###
+                                         counter, expert_goals) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
@@ -322,7 +323,7 @@ class DistributedLayout:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter) ###===### ###---###
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()

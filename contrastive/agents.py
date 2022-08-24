@@ -29,9 +29,12 @@ from contrastive import utils as contrastive_utils
 
 import dm_env
 
+from contrastive.default_logger import make_default_logger
 
 NetworkFactory = Callable[[specs.EnvironmentSpec],
                           networks.ContrastiveNetworks]
+
+import os
 
 
 class DistributedContrastive(distributed_layout.DistributedLayout):
@@ -48,16 +51,23 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
       log_to_bigtable = False,
       log_every = 10.0,
       evaluator_factories = None,
+      logdir=None,
+      wandblogger=None,
   ):
     # Check that the environment-specific parts of the config have been set.
     assert config.max_episode_steps > 0
     assert config.obs_dim > 0
 
-    logger_fn = functools.partial(loggers.make_default_logger,
+    self._logdir = logdir
+    self._wandblogger = wandblogger
+
+    logger_fn = functools.partial(make_default_logger,
+                                  self._logdir,
                                   'learner', log_to_bigtable,
                                   time_delta=log_every, asynchronous=True,
                                   serialize_fn=utils.fetch_devicearray,
-                                  steps_key='learner_steps')
+                                  steps_key='learner_steps',
+                                  wandblogger=wandblogger)
     contrastive_builder = builder.ContrastiveBuilder(config,
                                                      logger_fn=logger_fn)
     if evaluator_factories is None:
@@ -76,7 +86,9 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
               network_factory=network_factory,
               policy_factory=eval_policy_factory,
               log_to_bigtable=log_to_bigtable,
-              observers=eval_observers)
+              observers=eval_observers,
+              logdir=self._logdir,
+              wandblogger=self._wandblogger)
       ]
       if config.local:
         evaluator_factories = []
@@ -97,6 +109,7 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
         prefetch_size=config.prefetch_size,
         log_to_bigtable=log_to_bigtable,
         actor_logger_fn=distributed_layout.get_default_logger_fn(
-            log_to_bigtable, log_every),
+            log_to_bigtable, log_every, self._logdir, self._wandblogger),
         observers=actor_observers,
-        checkpointing_config=distributed_layout.CheckpointingConfig())
+        # checkpointing_config=distributed_layout.CheckpointingConfig(),
+        checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False),)
