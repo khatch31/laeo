@@ -28,7 +28,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastiv
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
 
-python3 -u lp_contrastive_goals.py \
+python3 -u lp_contrastive_goals_frozen_critic.py \
 --lp_launch_type=local_mt \
 --env_name=fetch_reach-goals \
 --logdir=/iris/u/khatch/contrastive_rl/trash_results
@@ -49,6 +49,9 @@ from contrastive import utils as contrastive_utils
 import launchpad as lp
 
 import os
+
+import tensorflow as tf
+import dill
 import shutil
 
 from contrastive.wandb_logger import WANDBLogger
@@ -59,11 +62,11 @@ flags.DEFINE_string('env_name', None, 'Env_name.')
 flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
 flags.DEFINE_string('description', "default", 'description.')
 flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
+flags.DEFINE_string('critic_checkpoint_path', None, 'description.')
 flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
 flags.DEFINE_float('entropy_coefficient', None, 'description.')
 flags.DEFINE_integer('num_actors', 4, 'description.')
-flags.DEFINE_bool('invert_actor_loss', False, 'description.')
-flags.DEFINE_bool('exp_q_action', False, 'description.')
+
 
 @functools.lru_cache()
 def get_env(env_name, start_index, end_index):
@@ -88,7 +91,7 @@ def get_program(params):
     # handled separately.
     params['num_actors'] = 0
 
-  config = contrastive.ContrastiveConfigGoals(**params)
+  config = contrastive.ContrastiveConfigGoalsFrozenCritic(**params)
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
@@ -111,9 +114,9 @@ def get_program(params):
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
-  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner_goals", FLAGS.description, f"seed_{seed}")
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner_goals_frozen_critic", FLAGS.description, f"seed_{seed}")
 
-  group_name="_".join([params["env_name"], "learner_goals", FLAGS.description])
+  group_name="_".join([params["env_name"], "learner_goals_frozen_critic", FLAGS.description])
   name=f"seed_{seed}"
   wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
                             params,
@@ -121,11 +124,15 @@ def get_program(params):
                             name,
                             FLAGS.project)
 
+  reader = tf.train.load_checkpoint(FLAGS.critic_checkpoint_path)
+  params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
+  critic_checkpoint_state = dill.loads(params)
+
   if FLAGS.replay_buffer_load_dir is not None:
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
-  agent = contrastive.DistributedContrastiveGoals(
+  agent = contrastive.DistributedContrastiveGoalsFrozenCritic(
       seed=seed,
       environment_factory=env_factory_no_extra,
       network_factory=network_factory,
@@ -134,6 +141,7 @@ def get_program(params):
       log_to_bigtable=True,
       max_number_of_steps=config.max_number_of_steps,
       expert_goals=expert_goals,
+      critic_checkpoint_state=critic_checkpoint_state,
       logdir=logdir,
       wandblogger=wandblogger)
   print("Done with agent init.")
@@ -229,9 +237,6 @@ def main(_):
 
   params["entropy_coefficient"] = FLAGS.entropy_coefficient
   params["num_actors"] = FLAGS.num_actors
-  params["invert_actor_loss"] = FLAGS.invert_actor_loss
-  params["exp_q_action"] = FLAGS.exp_q_action
-
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.

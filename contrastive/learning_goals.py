@@ -84,6 +84,9 @@ class ContrastiveLearnerGoals(acme.Learner):
     self._num_sgd_steps_per_step = config.num_sgd_steps_per_step
     self._obs_dim = config.obs_dim
     self._use_td = config.use_td
+
+    print("adaptive_entropy_coefficient:", adaptive_entropy_coefficient)
+
     if adaptive_entropy_coefficient:
       # alpha is the temperature parameter that determines the relative
       # importance of the entropy term versus the reward.
@@ -282,12 +285,27 @@ class ContrastiveLearnerGoals(acme.Learner):
         new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
         # hcb.id_print(new_critic_obs, what="new_critic_obs")
         # hcb.id_print(new_critic_obs.shape, what="new_critic_obs.shape")
+
+        # add jnp.exp
+        # inverting actor loss?
+
         q_action = networks.q_network.apply(
             q_params, new_critic_obs, action)
         if len(q_action.shape) == 3:  # twin q trick
           assert q_action.shape[2] == 2
           q_action = jnp.min(q_action, axis=-1)
+
+        if config.exp_q_action:
+            hcb.id_print(q_action, what="(before) q_action")
+            q_action = jnp.exp(q_action)
+            hcb.id_print(q_action, what="(after) q_action")
+
         actor_loss = alpha * log_prob - jnp.diag(q_action)
+
+        if config.invert_actor_loss:
+            # hcb.id_print(actor_loss, what="(before) actor_loss")
+            actor_loss = -actor_loss
+            # hcb.id_print(actor_loss, what="(after) actor_loss")
 
       return jnp.mean(actor_loss)
 

@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlgfetchreachgdefault"
+#SBATCH --job-name="crlgfcfetchreachgnonoise"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -40,9 +40,13 @@ pwd
 ls -l /usr/local
 
 
-python3 -u lp_contrastive_goals.py \
+python3 -u lp_contrastive_goals_frozen_critic.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals \
---env_name=fetch_reach-goals \
+--env_name=fetch_reach-goals-no-noise \
+--description=nonoise \
 --entropy_coefficient=0 \
---logdir=/iris/u/khatch/contrastive_rl/results
+--logdir=/iris/u/khatch/contrastive_rl/results \
+--critic_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach/learner/default/seed_0/checkpoints/learner
+
+# --project=contrastive_rl_goals \

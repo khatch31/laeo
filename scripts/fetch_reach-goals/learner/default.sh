@@ -43,5 +43,6 @@ ls -l /usr/local
 python3 -u lp_contrastive.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals \
+--entropy_coefficient=0 \
 --env_name=fetch_reach-goals \
 --logdir=/iris/u/khatch/contrastive_rl/results

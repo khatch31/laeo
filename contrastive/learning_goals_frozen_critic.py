@@ -23,7 +23,7 @@ from acme.jax import networks as networks_lib
 from acme.jax import utils
 from acme.utils import counting
 from acme.utils import loggers
-from contrastive import config as contrastive_config
+from contrastive import config_goals_frozen_critic as contrastive_config
 from contrastive import networks as contrastive_networks
 import jax
 import jax.numpy as jnp
@@ -45,7 +45,7 @@ class TrainingState(NamedTuple):
   alpha_params: Optional[networks_lib.Params] = None
 
 
-class ContrastiveLearner(acme.Learner):
+class ContrastiveLearnerGoalsFrozenCritic(acme.Learner):
   """Contrastive RL learner."""
 
   _state: TrainingState
@@ -60,7 +60,9 @@ class ContrastiveLearner(acme.Learner):
       counter,
       logger,
       obs_to_goal,
-      config):
+      config,
+      expert_goals,
+      critic_checkpoint_state,): ###===### ###---###
     """Initialize the Contrastive RL learner.
 
     Args:
@@ -74,12 +76,18 @@ class ContrastiveLearner(acme.Learner):
       obs_to_goal: a function for extracting the goal coordinates.
       config: the experiment config file.
     """
+
+    expert_goals = jnp.array(expert_goals, dtype=jnp.float32)
+
     if config.add_mc_to_td:
       assert config.use_td
     adaptive_entropy_coefficient = config.entropy_coefficient is None
     self._num_sgd_steps_per_step = config.num_sgd_steps_per_step
     self._obs_dim = config.obs_dim
     self._use_td = config.use_td
+
+    print("adaptive_entropy_coefficient:", adaptive_entropy_coefficient)
+    
     if adaptive_entropy_coefficient:
       # alpha is the temperature parameter that determines the relative
       # importance of the entropy term versus the reward.
@@ -105,153 +113,65 @@ class ContrastiveLearner(acme.Learner):
           -log_prob - config.target_entropy)
       return jnp.mean(alpha_loss)
 
-    def critic_loss(q_params,
-                    policy_params,
-                    target_q_params,
-                    transitions,
-                    key):
-      batch_size = transitions.observation.shape[0]
-      # Note: We might be able to speed up the computation for some of the
-      # baselines to making a single network that returns all the values. This
-      # avoids computing some of the underlying representations multiple times.
-      if config.use_td:
-        # For TD learning, the diagonal elements are the immediate next state.
-        s, g = jnp.split(transitions.observation, [config.obs_dim], axis=1)
-        next_s, _ = jnp.split(transitions.next_observation, [config.obs_dim],
-                              axis=1)
-        if config.add_mc_to_td:
-          next_fraction = (1 - config.discount) / ((1 - config.discount) + 1)
-          num_next = int(batch_size * next_fraction)
-          new_g = jnp.concatenate([
-              obs_to_goal(next_s[:num_next]),
-              g[num_next:],
-          ], axis=0)
-        else:
-          new_g = obs_to_goal(next_s)
-        obs = jnp.concatenate([s, new_g], axis=1)
-        transitions = transitions._replace(observation=obs)
-      I = jnp.eye(batch_size)  # pylint: disable=invalid-name
-      logits = networks.q_network.apply(
-          q_params, transitions.observation, transitions.action)
-
-      if config.use_td:
-        # Make sure to use the twin Q trick.
-        assert len(logits.shape) == 3
-
-        # We evaluate the next-state Q function using random goals
-        s, g = jnp.split(transitions.observation, [config.obs_dim], axis=1)
-        del s
-        next_s = transitions.next_observation[:, :config.obs_dim]
-        goal_indices = jnp.roll(jnp.arange(batch_size, dtype=jnp.int32), -1)
-        g = g[goal_indices]
-        transitions = transitions._replace(
-            next_observation=jnp.concatenate([next_s, g], axis=1))
-        next_dist_params = networks.policy_network.apply(
-            policy_params, transitions.next_observation)
-        next_action = networks.sample(next_dist_params, key)
-        next_q = networks.q_network.apply(target_q_params,
-                                          transitions.next_observation,
-                                          next_action)  # This outputs logits.
-        next_q = jax.nn.sigmoid(next_q)
-        next_v = jnp.min(next_q, axis=-1)
-        next_v = jax.lax.stop_gradient(next_v)
-        next_v = jnp.diag(next_v)
-        # diag(logits) are predictions for future states.
-        # diag(next_q) are predictions for random states, which correspond to
-        # the predictions logits[range(B), goal_indices].
-        # So, the only thing that's meaningful for next_q is the diagonal. Off
-        # diagonal entries are meaningless and shouldn't be used.
-        w = next_v / (1 - next_v)
-        w_clipping = 20.0
-        w = jnp.clip(w, 0, w_clipping)
-        # (B, B, 2) --> (B, 2), computes diagonal of each twin Q.
-        pos_logits = jax.vmap(jnp.diag, -1, -1)(logits)
-        loss_pos = optax.sigmoid_binary_cross_entropy(
-            logits=pos_logits, labels=1)  # [B, 2]
-
-        neg_logits = logits[jnp.arange(batch_size), goal_indices]
-        loss_neg1 = w[:, None] * optax.sigmoid_binary_cross_entropy(
-            logits=neg_logits, labels=1)  # [B, 2]
-        loss_neg2 = optax.sigmoid_binary_cross_entropy(
-            logits=neg_logits, labels=0)  # [B, 2]
-
-        if config.add_mc_to_td:
-          loss = ((1 + (1 - config.discount)) * loss_pos
-                  + config.discount * loss_neg1 + 2 * loss_neg2)
-        else:
-          loss = ((1 - config.discount) * loss_pos
-                  + config.discount * loss_neg1 + loss_neg2)
-        # Take the mean here so that we can compute the accuracy.
-        logits = jnp.mean(logits, axis=-1)
-
-      else:  # For the MC losses.
-        def loss_fn(_logits):  # pylint: disable=invalid-name
-          if config.use_cpc:
-            return (optax.softmax_cross_entropy(logits=_logits, labels=I)
-                    + 0.01 * jax.nn.logsumexp(_logits, axis=1)**2)
-          else:
-            return optax.sigmoid_binary_cross_entropy(logits=_logits, labels=I)
-        if len(logits.shape) == 3:  # twin q
-          # loss.shape = [.., num_q]
-          loss = jax.vmap(loss_fn, in_axes=2, out_axes=-1)(logits)
-          loss = jnp.mean(loss, axis=-1)
-          # Take the mean here so that we can compute the accuracy.
-          logits = jnp.mean(logits, axis=-1)
-        else:
-          loss = loss_fn(logits)
-
-      loss = jnp.mean(loss)
-      correct = (jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1))
-      logits_pos = jnp.sum(logits * I) / jnp.sum(I)
-      logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
-      if len(logits.shape) == 3:
-        logsumexp = jax.nn.logsumexp(logits[:, :, 0], axis=1)**2
-      else:
-        logsumexp = jax.nn.logsumexp(logits, axis=1)**2
-      metrics = {
-          'binary_accuracy': jnp.mean((logits > 0) == I),
-          'categorical_accuracy': jnp.mean(correct),
-          'logits_pos': logits_pos,
-          'logits_neg': logits_neg,
-          'logsumexp': logsumexp.mean(),
-      }
-
-      return loss, metrics
 
     def actor_loss(policy_params,
                    q_params,
                    alpha,
                    transitions,
                    key,
+                   expert_goals,
                    ):
       obs = transitions.observation
-      if config.use_gcbc:
+      if config.use_gcbc: # Just does behavioral cloning here?
         dist_params = networks.policy_network.apply(
             policy_params, obs)
         log_prob = networks.log_prob(dist_params, transitions.action)
         actor_loss = -1.0 * jnp.mean(log_prob)
       else:
         state = obs[:, :config.obs_dim]
-        goal = obs[:, config.obs_dim:]
+        # goal = obs[:, config.obs_dim:]
+        actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
+
+        batch_size = obs.shape[0]
+        idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
+        critic_goal = expert_goals[idxs]
+        # hcb.id_print(actor_goal, what="\n\nactor_goal")
+        # hcb.id_print(actor_goal.shape, what="actor_goal.shape")
+        # hcb.id_print(idxs, what="idxs")
+        # hcb.id_print(critic_goal, what="critic_goal")
+        # hcb.id_print(critic_goal.shape, what="critic_goal.shape")
 
         if config.random_goals == 0.0:
           new_state = state
-          new_goal = goal
+          # new_goal = goal
+          new_actor_goal = actor_goal
+          new_critic_goal = critic_goal
         elif config.random_goals == 0.5:
           new_state = jnp.concatenate([state, state], axis=0)
-          new_goal = jnp.concatenate([goal, jnp.roll(goal, 1, axis=0)], axis=0)
+          # new_goal = jnp.concatenate([goal, jnp.roll(goal, 1, axis=0)], axis=0)
+          new_actor_goal = jnp.concatenate([actor_goal, jnp.roll(actor_goal, 1, axis=0)], axis=0)
+          new_critic_goal = jnp.concatenate([critic_goal, jnp.roll(critic_goal, 1, axis=0)], axis=0)
         else:
           assert config.random_goals == 1.0
           new_state = state
-          new_goal = jnp.roll(goal, 1, axis=0)
+          # new_goal = jnp.roll(goal, 1, axis=0)
+          new_actor_goal = jnp.roll(actor_goal, 1, axis=0)
+          new_critic_goal = jnp.roll(critic_goal, 1, axis=0)
 
-        new_obs = jnp.concatenate([new_state, new_goal], axis=1)
+        # new_obs = jnp.concatenate([new_state, new_goal], axis=1)
+        new_actor_obs = jnp.concatenate([new_state, new_actor_goal], axis=1)
+        # hcb.id_print(new_actor_obs, what="new_actor_obs")
+        # hcb.id_print(new_actor_obs.shape, what="new_actor_obs.shape")
         dist_params = networks.policy_network.apply(
-            policy_params, new_obs)
+            policy_params, new_actor_obs)
         action = networks.sample(dist_params, key)
         log_prob = networks.log_prob(dist_params, action)
+
+        new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
+        # hcb.id_print(new_critic_obs, what="new_critic_obs")
+        # hcb.id_print(new_critic_obs.shape, what="new_critic_obs.shape")
         q_action = networks.q_network.apply(
-            q_params, new_obs, action)
+            q_params, new_critic_obs, action)
         if len(q_action.shape) == 3:  # twin q trick
           assert q_action.shape[2] == 2
           q_action = jnp.min(q_action, axis=-1)
@@ -260,7 +180,6 @@ class ContrastiveLearner(acme.Learner):
       return jnp.mean(actor_loss)
 
     alpha_grad = jax.value_and_grad(alpha_loss)
-    critic_grad = jax.value_and_grad(critic_loss, has_aux=True)
     actor_grad = jax.value_and_grad(actor_loss)
 
     def update_step(
@@ -277,13 +196,8 @@ class ContrastiveLearner(acme.Learner):
       else:
         alpha = config.entropy_coefficient
 
-      if not config.use_gcbc:
-        (critic_loss, critic_metrics), critic_grads = critic_grad(
-            state.q_params, state.policy_params, state.target_q_params,
-            transitions, key_critic)
-
       actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
-                                           alpha, transitions, key_actor)
+                                           alpha, transitions, key_actor, expert_goals)
 
       # Apply policy gradients
       actor_update, policy_optimizer_state = policy_optimizer.update(
@@ -291,22 +205,11 @@ class ContrastiveLearner(acme.Learner):
       policy_params = optax.apply_updates(state.policy_params, actor_update)
 
       # Apply critic gradients
-      if config.use_gcbc:
-        metrics = {}
-        critic_loss = 0.0
-        q_params = state.q_params
-        q_optimizer_state = state.q_optimizer_state
-        new_target_q_params = state.target_q_params
-      else:
-        critic_update, q_optimizer_state = q_optimizer.update(
-            critic_grads, state.q_optimizer_state)
-
-        q_params = optax.apply_updates(state.q_params, critic_update)
-
-        new_target_q_params = jax.tree_map(
-            lambda x, y: x * (1 - config.tau) + y * config.tau,
-            state.target_q_params, q_params)
-        metrics = critic_metrics
+      metrics = {}
+      critic_loss = 0.0
+      q_params = state.q_params
+      q_optimizer_state = state.q_optimizer_state
+      new_target_q_params = state.target_q_params
 
       metrics.update({
           'critic_loss': critic_loss,
@@ -379,23 +282,11 @@ class ContrastiveLearner(acme.Learner):
       return state
 
     # Create initial state.
-
-
     self._state = make_initial_state(rng)
 
-
-    # if state_load_path is not None:
-    #     reader = tf.train.load_checkpoint(state_load_path)
-    #     params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
-    #     state = dill.loads(params)
-    #     self.restore(state)
-    #
-        # reader = tf.train.load_checkpoint(state_load_path)
-        # params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
-        # state = dill.loads(params)
-        # self.restore_critic_only(state)
-
-
+    assert critic_checkpoint_state is not None
+    if critic_checkpoint_state is not None:
+        self.restore_critic_only(critic_checkpoint_state)
 
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online
@@ -424,6 +315,7 @@ class ContrastiveLearner(acme.Learner):
     # Attempts to write the logs.
     self._logger.write({**metrics, **counts})
 
+
   def get_variables(self, names):
     variables = {
         'policy': self._state.policy_params,
@@ -435,10 +327,15 @@ class ContrastiveLearner(acme.Learner):
     return self._state
 
   def restore(self, state):
-    print("\n\nRestoring learner\n\n")
     self._state = state
 
-  # def restore_critic_only(self, state):
-  #     self._state.q_params = state.q_params
-  #     self._state.target_q_params = state.target_q_params
-  #     self._state.q_optimizer_state = state.q_optimizer_state
+  def restore_critic_only(self, state):
+      new_state = TrainingState(
+          policy_optimizer_state=self._state.policy_optimizer_state,
+          q_optimizer_state=state.q_optimizer_state,
+          policy_params=self._state.policy_params,
+          q_params=state.q_params,
+          target_q_params=state.target_q_params,
+          key=self._state.key,
+      )
+      self._state = new_state

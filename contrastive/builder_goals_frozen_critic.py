@@ -31,7 +31,7 @@ from acme.jax import variable_utils
 from acme.utils import counting
 from acme.utils import loggers
 from contrastive import config as contrastive_config
-from contrastive import learning
+from contrastive import learning_goals_frozen_critic
 from contrastive import networks as contrastive_networks
 from contrastive import utils as contrastive_utils
 import optax
@@ -41,13 +41,15 @@ import tensorflow as tf
 import tree
 
 
-class ContrastiveBuilder(builders.ActorLearnerBuilder):
+class ContrastiveBuilderGoalsFrozenCritic(builders.ActorLearnerBuilder):
   """Contrastive RL builder."""
 
   def __init__(
       self,
       config,
       logger_fn = lambda: None,
+      expert_goals=None,
+      critic_checkpoint_state=None,
   ):
     """Creates a contrastive RL learner, a behavior policy and an eval actor.
 
@@ -65,12 +67,14 @@ class ContrastiveBuilder(builders.ActorLearnerBuilder):
       dataset,
       replay_client = None,
       counter = None,
+      expert_goals=None, ###===###
+      critic_checkpoint_state=None, ###---###
   ):
     # Create optimizers
     policy_optimizer = optax.adam(
         learning_rate=self._config.actor_learning_rate, eps=1e-7)
     q_optimizer = optax.adam(learning_rate=self._config.learning_rate, eps=1e-7)
-    return learning.ContrastiveLearner(
+    return learning_goals_frozen_critic.ContrastiveLearnerGoalsFrozenCritic(
         networks=networks,
         rng=random_key,
         policy_optimizer=policy_optimizer,
@@ -81,7 +85,9 @@ class ContrastiveBuilder(builders.ActorLearnerBuilder):
         obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,
                                       start_index=self._config.start_index,
                                       end_index=self._config.end_index),
-        config=self._config)
+        config=self._config,
+        expert_goals=expert_goals,
+        critic_checkpoint_state=critic_checkpoint_state,) ###===### ###---###
 
   def make_actor(
       self,
@@ -205,7 +211,6 @@ class ContrastiveBuilder(builders.ActorLearnerBuilder):
         drop_remainder=True)
     @tf.function
     def add_info_fn(data):
-      print("data:", data)
       info = reverb.SampleInfo(key=0,
                                probability=0.0,
                                table_size=0,
@@ -213,10 +218,6 @@ class ContrastiveBuilder(builders.ActorLearnerBuilder):
       return reverb.ReplaySample(info=info, data=data)
     dataset = dataset.map(add_info_fn, num_parallel_calls=tf.data.AUTOTUNE,
                           deterministic=False)
-
-    # it = replay_client.sample(self._config.replay_table_name)
-    # x = next(it)
-
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
     return dataset.as_numpy_iterator()
 

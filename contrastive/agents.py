@@ -113,3 +113,5 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
         observers=actor_observers,
         # checkpointing_config=distributed_layout.CheckpointingConfig(),
         checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False),)
+        # checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False,
+        #                                                             replay_checkpointing_time_delta_minutes=30),)

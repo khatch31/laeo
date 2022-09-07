@@ -45,3 +45,5 @@ python3 -u lp_contrastive.py \
 --project=contrastive_rl_goals \
 --env_name=fetch_reach \
 --logdir=/iris/u/khatch/contrastive_rl/results
+
+# --project=contrastive_rl_goals \

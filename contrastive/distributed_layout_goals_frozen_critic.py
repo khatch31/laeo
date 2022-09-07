@@ -133,7 +133,7 @@ class CheckpointingConfig:
   # add_uid: bool = True
 
 
-class DistributedLayout:
+class DistributedLayoutGoalsFrozenCritic:
   """Program definition for a distributed agent based on a builder."""
 
   def __init__(
@@ -185,18 +185,6 @@ class DistributedLayout:
         self._environment_spec or
         specs.make_environment_spec(self._environment_factory(dummy_seed)))
     return self._builder.make_replay_tables(environment_spec)
-    # replay_buffer = self._builder.make_replay_tables(environment_spec) ###$$$###
-    #
-    # kwargs = {}
-    # if self._checkpointing_config:
-    #   kwargs = vars(self._checkpointing_config)
-    # return savers.CheckpointingRunner(
-    #     replay_buffer,
-    #     key='replay_buffer',
-    #     subdirectory='replay_buffer',
-    #     time_delta_minutes=5,
-    #     **kwargs)
-
 
   def counter(self):
     kwargs = {}
@@ -214,6 +202,8 @@ class DistributedLayout:
       random_key,
       replay,
       counter,
+      expert_goals, ###===###
+      critic_checkpoint_state, ###---###
   ):
     """The Learning part of the agent."""
 
@@ -271,7 +261,7 @@ class DistributedLayout:
     counter = counting.Counter(counter, 'learner')
 
     learner = self._builder.make_learner(random_key, networks, iterator, replay,
-                                         counter) ###===### ###---###
+                                         counter, expert_goals, critic_checkpoint_state) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
@@ -322,11 +312,11 @@ class DistributedLayout:
     def r_checpointer():
         import os
         from reverb.platform.checkpointers_lib import DefaultCheckpointer
-        # return DefaultCheckpointer("/iris/u/khatch/contrastive_rl/results/trash_results/fetch_reach/learner/default/seed_0/checkpoints/replay_buffer")
         return DefaultCheckpointer(os.path.join(self._logdir, "checkpoints", "replay_buffer"))
 
     replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
-    # replay_node = lp.CourierNode(self.replay) ###$$$###
+
+    # replay_node = lp.ReverbNode(self.replay)
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:
         replay = replay_node.create_handle()
@@ -341,7 +331,7 @@ class DistributedLayout:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter) ###===### ###---###
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals, self._critic_checkpoint_state) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()

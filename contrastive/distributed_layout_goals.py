@@ -308,7 +308,13 @@ class DistributedLayoutGoals:
 
     key = jax.random.PRNGKey(self._seed)
 
-    replay_node = lp.ReverbNode(self.replay)
+    def r_checpointer():
+        import os
+        from reverb.platform.checkpointers_lib import DefaultCheckpointer
+        # return DefaultCheckpointer("/iris/u/khatch/contrastive_rl/results/trash_results/fetch_reach/learner/default/seed_0/checkpoints/replay_buffer")
+        return DefaultCheckpointer(os.path.join(self._logdir, "checkpoints", "replay_buffer"))
+
+    replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:
         replay = replay_node.create_handle()

@@ -44,5 +44,6 @@ python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals \
 --env_name=fetch_reach-goals-no-noise \
+--entropy_coefficient=0 \
 --description=nonoise \
 --logdir=/iris/u/khatch/contrastive_rl/results

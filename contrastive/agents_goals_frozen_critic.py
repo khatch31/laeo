@@ -21,9 +21,9 @@ from typing import Callable, Optional, Sequence
 from acme import specs
 from acme.jax import utils
 from acme.utils import loggers
-from contrastive import builder_goals
+from contrastive import builder_goals_frozen_critic
 from contrastive import config as contrastive_config
-from contrastive import distributed_layout_goals
+from contrastive import distributed_layout_goals_frozen_critic
 from contrastive import networks
 from contrastive import utils as contrastive_utils
 
@@ -37,7 +37,7 @@ NetworkFactory = Callable[[specs.EnvironmentSpec],
 
 import os
 
-class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoals):
+class DistributedContrastiveGoalsFrozenCritic(distributed_layout_goals_frozen_critic.DistributedLayoutGoalsFrozenCritic):
   """Distributed program definition for contrastive RL."""
 
   def __init__(
@@ -52,6 +52,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
       log_every = 10.0,
       evaluator_factories = None,
       expert_goals=None,
+      critic_checkpoint_state=None,
       logdir=None,
       wandblogger=None,
   ):
@@ -60,6 +61,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
     assert config.obs_dim > 0
 
     self._expert_goals = expert_goals
+    self._critic_checkpoint_state = critic_checkpoint_state
     self._logdir = logdir
     self._wandblogger = wandblogger
 
@@ -70,7 +72,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
                                   serialize_fn=utils.fetch_devicearray,
                                   steps_key='learner_steps',
                                   wandblogger=wandblogger)
-    contrastive_builder = builder_goals.ContrastiveBuilderGoals(config,
+    contrastive_builder = builder_goals_frozen_critic.ContrastiveBuilderGoalsFrozenCritic(config,
                                                      logger_fn=logger_fn,)
                                                      # expert_goals=expert_goals)
     if evaluator_factories is None:
@@ -84,7 +86,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
               end_index=config.end_index)
       ]
       evaluator_factories = [
-          distributed_layout_goals.default_evaluator_factory(
+          distributed_layout_goals_frozen_critic.default_evaluator_factory(
               environment_factory=environment_factory,
               network_factory=network_factory,
               policy_factory=eval_policy_factory,
@@ -112,8 +114,8 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
         max_number_of_steps=max_number_of_steps,
         prefetch_size=config.prefetch_size,
         log_to_bigtable=log_to_bigtable,
-        actor_logger_fn=distributed_layout_goals.get_default_logger_fn(
+        actor_logger_fn=distributed_layout_goals_frozen_critic.get_default_logger_fn(
             log_to_bigtable, log_every, self._logdir, self._wandblogger),
         observers=actor_observers,
-        # checkpointing_config=distributed_layout_goals.CheckpointingConfig(),
-        checkpointing_config=distributed_layout_goals.CheckpointingConfig(directory=self._logdir, add_uid=False),)
+        # checkpointing_config=distributed_layout_goals_frozen_critic.CheckpointingConfig(),
+        checkpointing_config=distributed_layout_goals_frozen_critic.CheckpointingConfig(directory=self._logdir, add_uid=False),)

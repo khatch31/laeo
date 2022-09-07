@@ -23,7 +23,7 @@ import numpy as onp
 
 
 @dataclasses.dataclass
-class ContrastiveConfigGoals:
+class ContrastiveConfigGoalsFrozenCritic:
   """Configuration options for contrastive RL."""
 
   env_name: str = ''
@@ -77,9 +77,6 @@ class ContrastiveConfigGoals:
   max_episode_steps: int = -1
   start_index: int = 0
   end_index: int = -1
-
-  invert_actor_loss: bool = False
-  exp_q_action: bool = False
 
 
 def target_entropy_from_env_spec(
