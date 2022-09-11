@@ -20,8 +20,8 @@ unset LD_PRELOAD
 # export LD_PRELOAD=$LD_PRELOAD:/usr/lib/x86_64-linux-gnu/libGLEW.so.1.13.0
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
 # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco200/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco210/bin
 
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
@@ -47,8 +47,9 @@ python3 -u lp_contrastive_goals_frozen_critic.py \
 --description=nonoise_offline \
 --entropy_coefficient=0 \
 --num_actors=0 \
---replay_buffer_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/replay_buffer \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---critic_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/learner
+--critic_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/learner \
+--replay_buffer_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/replay_buffer \
+
 
 # --project=contrastive_rl_goals \

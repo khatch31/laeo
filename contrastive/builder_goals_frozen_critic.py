@@ -122,7 +122,16 @@ class ContrastiveBuilderGoalsFrozenCritic(builders.ActorLearnerBuilder):
         min_size_to_sample=min_replay_traj,
         samples_per_insert=self._config.samples_per_insert,
         error_buffer=error_buffer)
-    return [
+    # return [
+    #     reverb.Table(
+    #         name=self._config.replay_table_name,
+    #         sampler=reverb.selectors.Uniform(),
+    #         remover=reverb.selectors.Fifo(),
+    #         max_size=max_replay_traj,
+    #         rate_limiter=limiter,
+    #         signature=adders_reverb.EpisodeAdder.signature(environment_spec, {}))  # pylint: disable=line-too-long
+    # ]
+    x = [
         reverb.Table(
             name=self._config.replay_table_name,
             sampler=reverb.selectors.Uniform(),
@@ -131,6 +140,7 @@ class ContrastiveBuilderGoalsFrozenCritic(builders.ActorLearnerBuilder):
             rate_limiter=limiter,
             signature=adders_reverb.EpisodeAdder.signature(environment_spec, {}))  # pylint: disable=line-too-long
     ]
+    return x
 
   def make_dataset_iterator(
       self, replay_client):
