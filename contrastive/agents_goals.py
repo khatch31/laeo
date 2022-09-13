@@ -121,4 +121,4 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
             log_to_bigtable, log_every, self._logdir, self._wandblogger),
         observers=actor_observers,
         # checkpointing_config=distributed_layout_goals.CheckpointingConfig(),
-        checkpointing_config=distributed_layout_goals.CheckpointingConfig(directory=self._logdir, add_uid=False),)
+        checkpointing_config=distributed_layout_goals.CheckpointingConfig(directory=self._logdir, max_to_keep=config.max_checkpoints_to_keep, add_uid=False),)

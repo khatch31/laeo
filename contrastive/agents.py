@@ -56,6 +56,7 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
       save_data=False,
       data_save_dir="~/acme/data",
       data_load_dir=None,
+      max_checkpoints_to_keep=1,
   ):
     # Check that the environment-specific parts of the config have been set.
     assert config.max_episode_steps > 0
@@ -118,6 +119,6 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
             log_to_bigtable, log_every, self._logdir, self._wandblogger),
         observers=actor_observers,
         # checkpointing_config=distributed_layout.CheckpointingConfig(),
-        checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False),)
+        checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, max_to_keep=config.max_checkpoints_to_keep, add_uid=False),)
         # checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False,
         #                                                             replay_checkpointing_time_delta_minutes=30),)

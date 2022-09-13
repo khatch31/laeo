@@ -82,6 +82,8 @@ class ContrastiveConfigGoals:
   invert_actor_loss: bool = False
   exp_q_action: bool = False
 
+  max_checkpoints_to_keep: int = 1
+
 
 def target_entropy_from_env_spec(
     spec,

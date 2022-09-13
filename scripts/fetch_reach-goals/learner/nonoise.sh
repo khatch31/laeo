@@ -42,10 +42,13 @@ ls -l /usr/local
 
 python3 -u lp_contrastive.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals \
+--project=trash_results \
 --entropy_coefficient=0 \
 --env_name=fetch_reach-goals-no-noise \
---description=nonoise_2 \
+--description=nonoise_collect \
+--save_data=true \
+--num_actors=1 \
+--max_checkpoints_to_keep=100 \
 --logdir=/iris/u/khatch/contrastive_rl/results
 
 # --project=contrastive_rl_goals \

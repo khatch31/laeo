@@ -123,4 +123,4 @@ class DistributedContrastiveGoalsFrozenCritic(distributed_layout_goals_frozen_cr
             log_to_bigtable, log_every, self._logdir, self._wandblogger),
         observers=actor_observers,
         # checkpointing_config=distributed_layout_goals_frozen_critic.CheckpointingConfig(),
-        checkpointing_config=distributed_layout_goals_frozen_critic.CheckpointingConfig(directory=self._logdir, add_uid=False),)
+        checkpointing_config=distributed_layout_goals_frozen_critic.CheckpointingConfig(directory=self._logdir, max_to_keep=config.max_checkpoints_to_keep, add_uid=False),)

@@ -79,6 +79,8 @@ class ContrastiveConfigGoalsFrozenCritic:
   start_index: int = 0
   end_index: int = -1
 
+  max_checkpoints_to_keep: int = 1
+
 
 def target_entropy_from_env_spec(
     spec,

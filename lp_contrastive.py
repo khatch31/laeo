@@ -63,7 +63,9 @@ flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
 flags.DEFINE_bool('save_data', False, 'description.')
 flags.DEFINE_integer('num_actors', 4, 'description.')
 flags.DEFINE_string('data_load_dir', None, 'description.')
+flags.DEFINE_integer('max_checkpoints_to_keep', 1, 'description.')
 
+flags.DEFINE_float('entropy_coefficient', None, 'description.')
 
 
 @functools.lru_cache()
@@ -74,6 +76,9 @@ def get_env(env_name, start_index, end_index):
 
 def get_program(params):
   """Constructs the program."""
+
+  if FLAGS.save_data:
+      assert params["num_actors"] == 1
 
   env_name = params['env_name']
   seed = params.pop('seed')
@@ -173,8 +178,10 @@ def main(_):
   }
 
   params["num_actors"] = FLAGS.num_actors
+  params["max_checkpoints_to_keep"] = FLAGS.max_checkpoints_to_keep
+  params["entropy_coefficient"] = FLAGS.entropy_coefficient
 
-  if 'ant_' in env_name: 
+  if 'ant_' in env_name:
     params['end_index'] = 2
 
   # 2. Select an algorithm. The currently-supported algorithms are:
@@ -199,7 +206,7 @@ def main(_):
     raise NotImplementedError('Unknown method: %s' % alg)
 
   if env_name.startswith('offline_fetch'):
-      assert if FLAGS.data_load_dir is not None
+    assert FLAGS.data_load_dir is not None
 
     params.update({
         # Effectively remove the rate-limiter by using very large values.
