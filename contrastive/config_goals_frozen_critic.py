@@ -58,6 +58,7 @@ class ContrastiveConfigGoalsFrozenCritic:
   num_sgd_steps_per_step: int = 64  # Gradient updates to perform per step.
 
   repr_dim: Union[int, str] = 64  # Size of representation.
+  actor_min_std: float = 1e-6
   use_random_actor: bool = True  # Initial with uniform random policy.
   repr_norm: bool = False
   use_cpc: bool = False

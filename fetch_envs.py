@@ -56,6 +56,8 @@ class FetchReachEnv(reach.FetchReachEnv):
     s = observation['observation']
     g = np.zeros_like(s)
     g[start_index:end_index] = observation['desired_goal']
+    # print(f"\ns.shape: {s.shape}, g.shape: {g.shape}")
+    # print(f"s {s}, g: {g}")
     return np.concatenate([s, g]).astype(np.float32)
 
 class FetchReachEnvGoals(FetchReachEnv):

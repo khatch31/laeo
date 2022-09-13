@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlgfetchreachgnonoise"
+#SBATCH --job-name="crlgfetchreachgnonoisepreload"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -45,5 +45,18 @@ python3 -u lp_contrastive_goals.py \
 --project=contrastive_rl_goals \
 --env_name=fetch_reach-goals-no-noise \
 --entropy_coefficient=0 \
---description=nonoise \
---logdir=/iris/u/khatch/contrastive_rl/results
+--description=nonoise_tune1_preload \
+--max_number_of_steps=3000000 \
+--batch_size=512 \
+--actor_learning_rate=1e-4 \
+--learning_rate=1e-4 \
+--num_sgd_steps_per_step=32 \
+--repr_dim=1024 \
+--hidden_layer_sizes=1024 \
+--hidden_layer_sizes=1024 \
+--max_replay_size=10000000 \
+--actor_min_std=0.1 \
+--logdir=/iris/u/khatch/contrastive_rl/results \
+--replay_buffer_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/replay_buffer \
+
+# --project=contrastive_rl_goals \

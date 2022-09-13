@@ -49,6 +49,7 @@ from contrastive import utils as contrastive_utils
 import launchpad as lp
 
 import os
+import shutil
 
 from contrastive.wandb_logger import WANDBLogger
 
@@ -58,6 +59,11 @@ flags.DEFINE_string('env_name', None, 'Env_name.')
 flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
 flags.DEFINE_string('description', "default", 'description.')
 flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
+flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
+flags.DEFINE_bool('save_data', False, 'description.')
+flags.DEFINE_integer('num_actors', 4, 'description.')
+flags.DEFINE_string('data_load_dir', None, 'description.')
+
 
 
 @functools.lru_cache()
@@ -78,7 +84,7 @@ def get_program(params):
     params['prefetch_size'] = 16
     params['num_actors'] = 10
 
-  if env_name.startswith('offline_ant'):
+  if env_name.startswith('offline_ant') or env_name.startswith('offline_fetch'):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
@@ -102,7 +108,8 @@ def get_program(params):
       contrastive.make_networks, obs_dim=obs_dim, repr_dim=config.repr_dim,
       repr_norm=config.repr_norm, twin_q=config.twin_q,
       use_image_obs=config.use_image_obs,
-      hidden_layer_sizes=config.hidden_layer_sizes)
+      hidden_layer_sizes=config.hidden_layer_sizes,
+      actor_min_std=config.actor_min_std)
 
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner", FLAGS.description, f"seed_{seed}")
 
@@ -114,6 +121,10 @@ def get_program(params):
                             name,
                             FLAGS.project)
 
+  if FLAGS.replay_buffer_load_dir is not None:
+      os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
+      shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
+
   agent = contrastive.DistributedContrastive(
       seed=seed,
       environment_factory=env_factory_no_extra,
@@ -123,7 +134,10 @@ def get_program(params):
       log_to_bigtable=True,
       max_number_of_steps=config.max_number_of_steps,
       logdir=logdir,
-      wandblogger=wandblogger)
+      wandblogger=wandblogger,
+      save_data=FLAGS.save_data,
+      data_save_dir=os.path.join(logdir, "recorded_data"),
+      data_load_dir=FLAGS.data_load_dir)
   return agent.build()
 
 
@@ -145,7 +159,10 @@ def main(_):
   #                             medium_play,medium_diverse,
   #                             large_play,large_diverse}
   # env_name = 'sawyer_window' ###===###
-  env_name = 'point_Cross' ###---###
+  # env_name = 'point_Cross' ###---###
+  if FLAGS.env_name:
+      env_name = FLAGS.env_name
+
   params = {
       'seed': 0,
       'use_random_actor': True,
@@ -154,7 +171,10 @@ def main(_):
       'max_number_of_steps': 1_000_000,
       'use_image_obs': 'image' in env_name,
   }
-  if 'ant_' in env_name:
+
+  params["num_actors"] = FLAGS.num_actors
+
+  if 'ant_' in env_name: 
     params['end_index'] = 2
 
   # 2. Select an algorithm. The currently-supported algorithms are:
@@ -177,6 +197,17 @@ def main(_):
     params['use_gcbc'] = True
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
+
+  if env_name.startswith('offline_fetch'):
+      assert if FLAGS.data_load_dir is not None
+
+    params.update({
+        # Effectively remove the rate-limiter by using very large values.
+        'samples_per_insert': 1_000_000,
+        'samples_per_insert_tolerance_rate': 100_000_000.0,
+        'random_goals': 0.0,
+    })
+
 
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):
@@ -208,9 +239,6 @@ def main(_):
         'samples_per_insert_tolerance_rate': 1.0,
         'hidden_layer_sizes': (32, 32),
     })
-
-  if FLAGS.env_name:
-      params["env_name"] = FLAGS.env_name
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.

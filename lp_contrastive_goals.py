@@ -65,6 +65,19 @@ flags.DEFINE_integer('num_actors', 4, 'description.')
 flags.DEFINE_bool('invert_actor_loss', False, 'description.')
 flags.DEFINE_bool('exp_q_action', False, 'description.')
 
+flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
+flags.DEFINE_integer('batch_size', 256, 'description.')
+flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
+flags.DEFINE_integer('repr_dim', 64, 'description.')
+flags.DEFINE_integer('max_replay_size', 1000000, 'description.')
+flags.DEFINE_multi_integer('hidden_layer_sizes', [256, 256], 'description.')
+flags.DEFINE_float('actor_min_std', 1e-6, 'description.')
+
+flags.DEFINE_bool('save_data', False, 'description.')
+flags.DEFINE_string('data_load_dir', None, 'description.')
+
 @functools.lru_cache()
 def get_env(env_name, start_index, end_index):
   return contrastive_utils.make_environment(env_name, start_index, end_index,
@@ -83,7 +96,7 @@ def get_program(params):
     params['prefetch_size'] = 16
     params['num_actors'] = 10
 
-  if env_name.startswith('offline_ant'):
+  if env_name.startswith('offline_ant') or env_name.startswith('offline_fetch'):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
@@ -107,7 +120,8 @@ def get_program(params):
       contrastive.make_networks, obs_dim=obs_dim, repr_dim=config.repr_dim,
       repr_norm=config.repr_norm, twin_q=config.twin_q,
       use_image_obs=config.use_image_obs,
-      hidden_layer_sizes=config.hidden_layer_sizes)
+      hidden_layer_sizes=config.hidden_layer_sizes,
+      actor_min_std=config.actor_min_std)
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
@@ -135,7 +149,10 @@ def get_program(params):
       max_number_of_steps=config.max_number_of_steps,
       expert_goals=expert_goals,
       logdir=logdir,
-      wandblogger=wandblogger)
+      wandblogger=wandblogger,
+      save_data=FLAGS.save_data,
+      data_save_dir=os.path.join(logdir, "recorded_data"),
+      data_load_dir=FLAGS.data_load_dir)
   print("Done with agent init.")
 
   return agent.build()
@@ -159,8 +176,27 @@ def main(_):
   #                             medium_play,medium_diverse,
   #                             large_play,large_diverse}
   # env_name = 'sawyer_window' ###===###
-  env_name = 'fixed-goal-point_Cross' ###---###
+  # env_name = 'fixed-goal-point_Cross' ###---###
   # env_name = "fetch_reach"
+
+  if FLAGS.env_name:
+      params["env_name"] = FLAGS.env_name
+
+  params["entropy_coefficient"] = FLAGS.entropy_coefficient
+  params["num_actors"] = FLAGS.num_actors
+  params["invert_actor_loss"] = FLAGS.invert_actor_loss
+  params["exp_q_action"] = FLAGS.exp_q_action
+
+  params["max_number_of_steps"] = FLAGS.max_number_of_steps
+  params["batch_size"] = FLAGS.batch_size
+  params["actor_learning_rate"] = FLAGS.actor_learning_rate
+  params["learning_rate"] = FLAGS.learning_rate
+  params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
+  params["repr_dim"] = FLAGS.repr_dim
+  params["max_replay_size"] = FLAGS.max_replay_size
+  params["hidden_layer_sizes"] = FLAGS.hidden_layer_sizes
+  params["actor_min_std"] = FLAGS.actor_min_std
+
   params = {
       'seed': 0,
       'use_random_actor': True,
@@ -193,6 +229,16 @@ def main(_):
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
 
+  if env_name.startswith('offline_fetch'):
+      assert if FLAGS.data_load_dir is not None
+
+    params.update({
+        # Effectively remove the rate-limiter by using very large values.
+        'samples_per_insert': 1_000_000,
+        'samples_per_insert_tolerance_rate': 100_000_000.0,
+        'random_goals': 0.0,
+    })
+
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):
     params.update({
@@ -223,15 +269,6 @@ def main(_):
         'samples_per_insert_tolerance_rate': 1.0,
         'hidden_layer_sizes': (32, 32),
     })
-
-  if FLAGS.env_name:
-      params["env_name"] = FLAGS.env_name
-
-  params["entropy_coefficient"] = FLAGS.entropy_coefficient
-  params["num_actors"] = FLAGS.num_actors
-  params["invert_actor_loss"] = FLAGS.invert_actor_loss
-  params["exp_q_action"] = FLAGS.exp_q_action
-
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.

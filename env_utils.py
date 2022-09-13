@@ -81,27 +81,32 @@ def load(env_name):
   elif env_name == 'sawyer_window':
     CLASS = SawyerWindow
     max_episode_steps = 150
-  elif env_name == 'fetch_reach':
-    CLASS = fetch_envs.FetchReachEnv
-    max_episode_steps = 50
-  elif env_name == "fetch_reach-goals":
-    CLASS = fetch_envs.FetchReachEnvGoals
-    kwargs["add_goal_noise"] = True
-    max_episode_steps = 50
-  elif env_name == 'fetch_reach-goals-no-noise':
-    CLASS = fetch_envs.FetchReachEnvGoals
-    kwargs["add_goal_noise"] = False
-    max_episode_steps = 50
-  elif env_name == 'fetch_push':
-    CLASS = fetch_envs.FetchPushEnv
-    max_episode_steps = 50
-  elif env_name == 'fetch_reach_image':
-    CLASS = fetch_envs.FetchReachImage
-    max_episode_steps = 50
-  elif env_name == 'fetch_push_image':
-    CLASS = fetch_envs.FetchPushImage
-    max_episode_steps = 50
-    kwargs['rand_y'] = True
+  elif "fetch_reach" in env_name:
+      if "offline" in env_name:
+          env_name = env_name.copy()[len("offline_"):]
+
+      if env_name == 'fetch_reach':
+        CLASS = fetch_envs.FetchReachEnv
+        max_episode_steps = 50
+      elif env_name == "fetch_reach-goals":
+        CLASS = fetch_envs.FetchReachEnvGoals
+        kwargs["add_goal_noise"] = True
+        max_episode_steps = 50
+      elif env_name == 'fetch_reach-goals-no-noise':
+        CLASS = fetch_envs.FetchReachEnvGoals
+        kwargs["add_goal_noise"] = False
+        max_episode_steps = 50
+      elif env_name == 'fetch_push':
+        CLASS = fetch_envs.FetchPushEnv
+        max_episode_steps = 50
+      elif env_name == 'fetch_reach_image':
+        CLASS = fetch_envs.FetchReachImage
+        max_episode_steps = 50
+      elif env_name == 'fetch_push_image':
+        CLASS = fetch_envs.FetchPushImage
+        max_episode_steps = 50
+        kwargs['rand_y'] = True
+
   elif env_name.startswith('ant_'):
     _, map_name = env_name.split('_')
     assert map_name in ['umaze', 'medium', 'large']

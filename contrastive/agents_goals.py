@@ -54,6 +54,9 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
       expert_goals=None,
       logdir=None,
       wandblogger=None,
+      save_data=False,
+      data_save_dir="~/acme/data",
+      data_load_dir=None,
   ):
     # Check that the environment-specific parts of the config have been set.
     assert config.max_episode_steps > 0
@@ -62,6 +65,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
     self._expert_goals = expert_goals
     self._logdir = logdir
     self._wandblogger = wandblogger
+    self._data_load_dir = data_load_dir
 
     logger_fn = functools.partial(make_default_logger,
                                   self._logdir,
@@ -71,8 +75,9 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
                                   steps_key='learner_steps',
                                   wandblogger=wandblogger)
     contrastive_builder = builder_goals.ContrastiveBuilderGoals(config,
-                                                     logger_fn=logger_fn,)
-                                                     # expert_goals=expert_goals)
+                                                     logger_fn=logger_fn,
+                                                     save_data=save_data,
+                                                     data_save_dir=data_save_dir)
     if evaluator_factories is None:
       eval_policy_factory = (
           lambda n: networks.apply_policy_and_sample(n, True))

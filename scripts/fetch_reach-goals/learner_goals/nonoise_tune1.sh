@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlfetchreachgdefault"
+#SBATCH --job-name="crlgfetchreachgnonoise"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -40,32 +40,22 @@ pwd
 ls -l /usr/local
 
 
-python3 -u lp_contrastive.py \
+python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals \
+--env_name=fetch_reach-goals-no-noise \
 --entropy_coefficient=0 \
---env_name=fetch_reach-goals \
+--description=nonoise_tune1 \
+--max_number_of_steps=3000000 \
+--batch_size=512 \
+--actor_learning_rate=1e-4 \
+--learning_rate=1e-4 \
+--num_sgd_steps_per_step=32 \
+--repr_dim=1024 \
+--hidden_layer_sizes=1024 \
+--hidden_layer_sizes=1024 \
+--max_replay_size=10000000 \
+--actor_min_std=0.1 \
 --logdir=/iris/u/khatch/contrastive_rl/results
 
-python3 -u lp_contrastive.py \
---lp_launch_type=local_mt \
---project=trash_results \
---env_name=fetch_reach \
---num_actors=1 \
---logdir=/iris/u/khatch/contrastive_rl/results \
---save_data=true
-
-python3 -u lp_contrastive.py \
---lp_launch_type=local_mt \
---project=trash_results \
---env_name=fetch_reach \
---num_actors=0 \
---description=offline \
---logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/results/trash_results/fetch_reach/learner/default/seed_0/recorded_data
-
-# --replay_buffer_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/replay_buffer
-
-
-# python3 -u lp_contrastive.py \
-# --lp_launch_type=local_mt
+# --project=contrastive_rl_goals \

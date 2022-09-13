@@ -31,7 +31,7 @@ class ContrastiveConfigGoals:
   num_actors: int = 4
 
   # Loss options
-  batch_size: int = 256
+  batch_size: int = 512 # 256
   actor_learning_rate: float = 3e-4
   learning_rate: float = 3e-4
   reward_scale: float = 1
@@ -57,7 +57,8 @@ class ContrastiveConfigGoals:
   samples_per_insert_tolerance_rate: float = 0.1
   num_sgd_steps_per_step: int = 64  # Gradient updates to perform per step.
 
-  repr_dim: Union[int, str] = 64  # Size of representation.
+  repr_dim: Union[int, str] = 64 # Size of representation.
+  actor_min_std: float = 1e-6
   use_random_actor: bool = True  # Initial with uniform random policy.
   repr_norm: bool = False
   use_cpc: bool = False

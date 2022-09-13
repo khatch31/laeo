@@ -207,7 +207,7 @@ class DistributedLayoutGoals:
     """The Learning part of the agent."""
 
     if self._builder._config.env_name.startswith('offline_ant'):  # pytype: disable=attribute-error, pylint: disable=protected-access
-      adder = self._builder.make_adder(replay)
+      adder = self._builder.make_adder(replay, force_no_save=True)
       env = self._environment_factory(0)
       dataset = env.get_dataset()  # pytype: disable=attribute-error
       for t in tqdm.trange(dataset['observations'].shape[0]):
@@ -234,6 +234,40 @@ class DistributedLayoutGoals:
 
         if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
           break
+
+
+    if self._builder._config.env_name.startswith('offline_fetch'):
+        assert self._data_load_dir is not None
+        adder = self._builder.make_adder(replay, force_no_save=True)
+
+        episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
+        get_ep_no = lambda x:int(x.split("/")[-1].split("_")[0].split("-")[-1])
+        episode_files = sorted(episode_files, key=get_ep_no)
+        for episode_file in tqdm.tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
+            with open(episode_file, 'rb') as f:
+                episode = np.load(f, allow_pickle=True)
+                episode = {k: episode[k] for k in episode.keys()}
+
+            for t in range(episode["observation"].shape[0]):
+                if t == 0:
+                  step_type = dm_env.StepType.FIRST
+                elif t == episode["observation"].shape[0] - 1:
+                  step_type = dm_env.StepType.LAST
+                  discount = 0.0
+                else:
+                  step_type = dm_env.StepType.MID
+
+                ts = dm_env.TimeStep(
+                    step_type=step_type,
+                    reward=episode['reward'][t],
+                    discount=episode["discount"][t],
+                    observation=episode['observation'][t],
+                )
+                if t == 0:
+                  adder.add_first(ts)  # pytype: disable=attribute-error
+                else:
+                  adder.add(action=episode['action'][t - 1], next_timestep=ts)  # pytype: disable=attribute-error
+
 
     iterator = self._builder.make_dataset_iterator(replay)
 
