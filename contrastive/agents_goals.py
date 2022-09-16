@@ -55,6 +55,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
       logdir=None,
       wandblogger=None,
       save_data=False,
+      save_sim_state=False,
       data_save_dir="~/acme/data",
       data_load_dir=None,
   ):
@@ -76,7 +77,8 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
                                   wandblogger=wandblogger)
     contrastive_builder = builder_goals.ContrastiveBuilderGoals(config,
                                                      logger_fn=logger_fn,
-                                                     save_data=save_data,
+                                                     # save_data=save_data,
+                                                     save_data=False,
                                                      data_save_dir=data_save_dir)
     if evaluator_factories is None:
       eval_policy_factory = (
@@ -86,7 +88,11 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
           contrastive_utils.DistanceObserver(
               obs_dim=config.obs_dim,
               start_index=config.start_index,
-              end_index=config.end_index)
+              end_index=config.end_index),
+          contrastive_utils.SavingObserver(
+              data_save_dir,
+              save=save_data,
+              save_sim_state=save_sim_state)
       ]
       evaluator_factories = [
           distributed_layout_goals.default_evaluator_factory(

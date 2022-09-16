@@ -20,6 +20,7 @@ from glob import glob
 
 class EpisodeAdderSaver(adders_reverb.EpisodeAdder):
   def __init__(self, *args, save=False,  savedir=None, **kwargs):
+      assert not save
       self._saved_ep_idx = 1
       if save:
           if os.path.isdir(savedir):
@@ -74,6 +75,8 @@ class EpisodeAdderSaver(adders_reverb.EpisodeAdder):
 
         length = len(episode['reward'])
         filename = os.path.join(self._savedir, f'ep-{self._saved_ep_idx}_len-{length}.npz')
+
+        print(f"Saving to \"{filename}\"...")
 
         if os.path.exists(filename):
             raise ValueError(f"\"{filename}\" already exists.")

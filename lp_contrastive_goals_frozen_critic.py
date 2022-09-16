@@ -81,6 +81,11 @@ flags.DEFINE_bool('save_data', False, 'description.')
 flags.DEFINE_string('data_load_dir', None, 'description.')
 flags.DEFINE_integer('max_checkpoints_to_keep', 1, 'description.')
 
+flags.DEFINE_float('bc_coef', 0, 'description.')
+flags.DEFINE_bool('twin_q', True, 'description.')
+
+flags.DEFINE_bool('save_sim_state', False, 'description.')
+
 
 @functools.lru_cache()
 def get_env(env_name, start_index, end_index):
@@ -91,8 +96,8 @@ def get_env(env_name, start_index, end_index):
 def get_program(params):
   """Constructs the program."""
 
-  if FLAGS.save_data:
-      assert params["num_actors"] == 1
+  # if FLAGS.save_data:
+  #     assert params["num_actors"] == 1
 
   env_name = params['env_name']
   seed = params.pop('seed')
@@ -107,6 +112,7 @@ def get_program(params):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
+    assert not FLAGS.save_data
 
   config = contrastive.ContrastiveConfigGoalsFrozenCritic(**params)
 
@@ -163,6 +169,7 @@ def get_program(params):
       logdir=logdir,
       wandblogger=wandblogger,
       save_data=FLAGS.save_data,
+      save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),
       data_load_dir=FLAGS.data_load_dir)
   print("Done with agent init.")
@@ -216,6 +223,9 @@ def main(_):
   params["max_replay_size"] = FLAGS.max_replay_size
   params["hidden_layer_sizes"] = FLAGS.hidden_layer_sizes
   params["actor_min_std"] = FLAGS.actor_min_std
+
+  params["bc_coef"] = FLAGS.bc_coef
+  params["twin_q"] = FLAGS.twin_q
 
   if 'ant_' in env_name:
     params['end_index'] = 2

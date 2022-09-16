@@ -273,33 +273,33 @@ class DistributedLayout:
         adder = self._builder.make_adder(replay, force_no_save=True)
 
         episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
-        get_ep_no = lambda x:int(x.split("/")[-1].split("_")[0].split("-")[-1])
+        get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
         episode_files = sorted(episode_files, key=get_ep_no)
+        # j = 0
         for episode_file in tqdm.tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
+            # j += 1
+            # if j > 1000:
+            #     break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
                 episode = {k: episode[k] for k in episode.keys()}
 
-            for t in range(episode["observation"].shape[0]):
-                if t == 0:
-                  step_type = dm_env.StepType.FIRST
-                elif t == episode["observation"].shape[0] - 1:
-                  step_type = dm_env.StepType.LAST
-                  discount = 0.0
-                else:
-                  step_type = dm_env.StepType.MID
+            assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
 
+            for t in range(episode["observation"].shape[0]):
                 ts = dm_env.TimeStep(
-                    step_type=step_type,
+                    step_type=episode["step_type"][t],
                     reward=episode['reward'][t],
                     discount=episode["discount"][t],
                     observation=episode['observation'][t],
                 )
                 if t == 0:
-                  adder.add_first(ts)  # pytype: disable=attribute-error
+                    assert episode["step_type"][t] == dm_env.StepType.FIRST
+                    adder.add_first(ts)  # pytype: disable=attribute-error
                 else:
-                  adder.add(action=episode['action'][t - 1], next_timestep=ts)  # pytype: disable=attribute-error
-
+                    assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
+                    adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                    
     iterator = self._builder.make_dataset_iterator(replay)
 
     dummy_seed = 1

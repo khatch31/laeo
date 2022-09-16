@@ -60,12 +60,27 @@ flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
 flags.DEFINE_string('description', "default", 'description.')
 flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
 flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
-flags.DEFINE_bool('save_data', False, 'description.')
+flags.DEFINE_float('entropy_coefficient', None, 'description.')
 flags.DEFINE_integer('num_actors', 4, 'description.')
+
+flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
+flags.DEFINE_integer('batch_size', 256, 'description.')
+flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
+flags.DEFINE_integer('repr_dim', 64, 'description.')
+flags.DEFINE_integer('max_replay_size', 1000000, 'description.')
+flags.DEFINE_multi_integer('hidden_layer_sizes', [256, 256], 'description.')
+flags.DEFINE_float('actor_min_std', 1e-6, 'description.')
+
+flags.DEFINE_bool('save_data', False, 'description.')
 flags.DEFINE_string('data_load_dir', None, 'description.')
 flags.DEFINE_integer('max_checkpoints_to_keep', 1, 'description.')
 
-flags.DEFINE_float('entropy_coefficient', None, 'description.')
+flags.DEFINE_float('bc_coef', 0, 'description.')
+flags.DEFINE_bool('twin_q', True, 'description.')
+
+flags.DEFINE_bool('save_sim_state', False, 'description.')
 
 
 @functools.lru_cache()
@@ -77,8 +92,8 @@ def get_env(env_name, start_index, end_index):
 def get_program(params):
   """Constructs the program."""
 
-  if FLAGS.save_data:
-      assert params["num_actors"] == 1
+  # if FLAGS.save_data:
+  #     assert params["num_actors"] == 1
 
   env_name = params['env_name']
   seed = params.pop('seed')
@@ -93,6 +108,7 @@ def get_program(params):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
+    assert not FLAGS.save_data
 
   config = contrastive.ContrastiveConfig(**params)
 
@@ -141,6 +157,7 @@ def get_program(params):
       logdir=logdir,
       wandblogger=wandblogger,
       save_data=FLAGS.save_data,
+      save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),
       data_load_dir=FLAGS.data_load_dir)
   return agent.build()
@@ -177,9 +194,22 @@ def main(_):
       'use_image_obs': 'image' in env_name,
   }
 
-  params["num_actors"] = FLAGS.num_actors
   params["max_checkpoints_to_keep"] = FLAGS.max_checkpoints_to_keep
   params["entropy_coefficient"] = FLAGS.entropy_coefficient
+  params["num_actors"] = FLAGS.num_actors
+
+  params["max_number_of_steps"] = FLAGS.max_number_of_steps
+  params["batch_size"] = FLAGS.batch_size
+  params["actor_learning_rate"] = FLAGS.actor_learning_rate
+  params["learning_rate"] = FLAGS.learning_rate
+  params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
+  params["repr_dim"] = FLAGS.repr_dim
+  params["max_replay_size"] = FLAGS.max_replay_size
+  params["hidden_layer_sizes"] = FLAGS.hidden_layer_sizes
+  params["actor_min_std"] = FLAGS.actor_min_std
+
+  params["bc_coef"] = FLAGS.bc_coef
+  params["twin_q"] = FLAGS.twin_q
 
   if 'ant_' in env_name:
     params['end_index'] = 2

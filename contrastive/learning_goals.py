@@ -237,6 +237,7 @@ class ContrastiveLearnerGoals(acme.Learner):
                    expert_goals,
                    ):
       obs = transitions.observation
+      # hcb.id_print(obs[0], what="\n\nobs")
       if config.use_gcbc: # Just does behavioral cloning here?
         dist_params = networks.policy_network.apply(
             policy_params, obs)
@@ -275,7 +276,7 @@ class ContrastiveLearnerGoals(acme.Learner):
 
         # new_obs = jnp.concatenate([new_state, new_goal], axis=1)
         new_actor_obs = jnp.concatenate([new_state, new_actor_goal], axis=1)
-        # hcb.id_print(new_actor_obs, what="new_actor_obs")
+        # hcb.id_print(new_actor_obs[0], what="new_actor_obs")
         # hcb.id_print(new_actor_obs.shape, what="new_actor_obs.shape")
         dist_params = networks.policy_network.apply(
             policy_params, new_actor_obs)
@@ -283,7 +284,7 @@ class ContrastiveLearnerGoals(acme.Learner):
         log_prob = networks.log_prob(dist_params, action)
 
         new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
-        # hcb.id_print(new_critic_obs, what="new_critic_obs")
+        # hcb.id_print(new_critic_obs[0], what="new_critic_obs")
         # hcb.id_print(new_critic_obs.shape, what="new_critic_obs.shape")
 
         # add jnp.exp
@@ -306,6 +307,16 @@ class ContrastiveLearnerGoals(acme.Learner):
             # hcb.id_print(actor_loss, what="(before) actor_loss")
             actor_loss = -actor_loss
             # hcb.id_print(actor_loss, what="(after) actor_loss")
+
+        assert 0.0 <= config.bc_coef <= 1.0
+        if config.bc_coef > 0:
+          orig_action = transitions.action
+          if config.random_goals == 0.5:
+            orig_action = jnp.concatenate([orig_action, orig_action], axis=0)
+
+          bc_loss = -1.0 * networks.log_prob(dist_params, orig_action)
+          actor_loss = (config.bc_coef * bc_loss
+                        + (1 - config.bc_coef) * actor_loss)
 
       return jnp.mean(actor_loss)
 

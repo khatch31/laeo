@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlfetchreachgnonoise"
+#SBATCH --job-name="fetchreachgcollect"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -42,13 +42,14 @@ ls -l /usr/local
 
 python3 -u lp_contrastive.py \
 --lp_launch_type=local_mt \
---project=trash_results \
+--project=contrastive_rl_goals3 \
 --entropy_coefficient=0 \
---env_name=fetch_reach-goals-no-noise \
---description=nonoise_collect \
+--env_name=fetch_reach-goals \
+--description=collect \
 --save_data=true \
---num_actors=1 \
---max_checkpoints_to_keep=100 \
+--save_sim_state=true \
+--num_actors=4 \
+--max_checkpoints_to_keep=1000 \
 --logdir=/iris/u/khatch/contrastive_rl/results
 
 # --project=contrastive_rl_goals \

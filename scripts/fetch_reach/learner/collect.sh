@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlgfcfetchreachgnonoise"
+#SBATCH --job-name="fetchreachcollect"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -20,8 +20,8 @@ unset LD_PRELOAD
 # export LD_PRELOAD=$LD_PRELOAD:/usr/lib/x86_64-linux-gnu/libGLEW.so.1.13.0
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
 # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
 
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
@@ -40,13 +40,16 @@ pwd
 ls -l /usr/local
 
 
-python3 -u lp_contrastive_goals_frozen_critic.py \
+python3 -u lp_contrastive.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals \
---env_name=fetch_reach-goals-no-noise \
---description=nonoise \
+--project=contrastive_rl_goals3 \
 --entropy_coefficient=0 \
---logdir=/iris/u/khatch/contrastive_rl/results \
---critic_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach/learner/default/seed_0/checkpoints/learner
+--env_name=fetch_reach \
+--description=collect \
+--save_data=true \
+--save_sim_state=true \
+--num_actors=4 \
+--max_checkpoints_to_keep=1000 \
+--logdir=/iris/u/khatch/contrastive_rl/results
 
 # --project=contrastive_rl_goals \

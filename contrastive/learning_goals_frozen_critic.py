@@ -87,7 +87,7 @@ class ContrastiveLearnerGoalsFrozenCritic(acme.Learner):
     self._use_td = config.use_td
 
     print("adaptive_entropy_coefficient:", adaptive_entropy_coefficient)
-    
+
     if adaptive_entropy_coefficient:
       # alpha is the temperature parameter that determines the relative
       # importance of the entropy term versus the reward.
@@ -176,6 +176,16 @@ class ContrastiveLearnerGoalsFrozenCritic(acme.Learner):
           assert q_action.shape[2] == 2
           q_action = jnp.min(q_action, axis=-1)
         actor_loss = alpha * log_prob - jnp.diag(q_action)
+
+        assert 0.0 <= config.bc_coef <= 1.0
+        if config.bc_coef > 0:
+          orig_action = transitions.action
+          if config.random_goals == 0.5:
+            orig_action = jnp.concatenate([orig_action, orig_action], axis=0)
+
+          bc_loss = -1.0 * networks.log_prob(dist_params, orig_action)
+          actor_loss = (config.bc_coef * bc_loss
+                        + (1 - config.bc_coef) * actor_loss)
 
       return jnp.mean(actor_loss)
 
@@ -284,9 +294,13 @@ class ContrastiveLearnerGoalsFrozenCritic(acme.Learner):
     # Create initial state.
     self._state = make_initial_state(rng)
 
+
+    networks.q_network.apply(self._state.q_params, jnp.ones((256, 20)), jnp.ones((256, 4)))
     assert critic_checkpoint_state is not None
     if critic_checkpoint_state is not None:
         self.restore_critic_only(critic_checkpoint_state)
+        print("\n\nRestored critic only \n\n")
+    # networks.q_network.apply(self._state.q_params, jnp.ones((256, 20)), jnp.ones((256, 4)))
 
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online

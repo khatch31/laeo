@@ -83,7 +83,8 @@ def load(env_name):
     max_episode_steps = 150
   elif "fetch_reach" in env_name:
       if "offline" in env_name:
-          env_name = env_name.copy()[len("offline_"):]
+          env_name = env_name[:][len("offline_"):]
+          print("env_name:", env_name)
 
       if env_name == 'fetch_reach':
         CLASS = fetch_envs.FetchReachEnv

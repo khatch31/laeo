@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="crlgfcfetchreachgnonoiseoffline"
+#SBATCH --job-name="nonoise_offline_tune1_repr64_bc0.05_alr1e-5"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -20,8 +20,8 @@ unset LD_PRELOAD
 # export LD_PRELOAD=$LD_PRELOAD:/usr/lib/x86_64-linux-gnu/libGLEW.so.1.13.0
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
 # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
 
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
@@ -40,16 +40,25 @@ pwd
 ls -l /usr/local
 
 
-python3 -u lp_contrastive_goals_frozen_critic.py \
+python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=trash_results \
---env_name=fetch_reach-goals-no-noise \
---description=nonoise_offline \
+--env_name=offline_fetch_reach-goals-no-noise \
+--description=nonoise_offline_tune1_repr64_bc0.05_alr1e-5 \
 --entropy_coefficient=0 \
+--max_number_of_steps=3000000 \
+--actor_learning_rate=1e-5 \
+--learning_rate=1e-4 \
+--repr_dim=64 \
+--hidden_layer_sizes=1024 \
+--hidden_layer_sizes=1024 \
+--max_replay_size=10000000 \
+--actor_min_std=0.1 \
+--batch_size=1024 \
 --num_actors=0 \
+--twin_q=true \
+--bc_coef=0.05 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---critic_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/learner \
---replay_buffer_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals/fetch_reach-goals-no-noise/learner/nonoise_2/seed_0/checkpoints/replay_buffer \
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/trash_results/fetch_reach-goals-no-noise/learner/nonoise_collect/seed_0/recorded_data
 
-
-# --project=contrastive_rl_goals \
+# --project=contrastive_rl_goals2 \
