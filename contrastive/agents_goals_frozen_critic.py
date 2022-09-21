@@ -64,6 +64,8 @@ class DistributedContrastiveGoalsFrozenCritic(distributed_layout_goals_frozen_cr
     assert config.max_episode_steps > 0
     assert config.obs_dim > 0
 
+    self._obs_dim = config.obs_dim
+
     self._expert_goals = expert_goals
     self._critic_checkpoint_state = critic_checkpoint_state
     self._logdir = logdir
@@ -87,6 +89,9 @@ class DistributedContrastiveGoalsFrozenCritic(distributed_layout_goals_frozen_cr
           lambda n: networks.apply_policy_and_sample(n, True))
       eval_observers = [
           contrastive_utils.SuccessObserver(),
+          contrastive_utils.LastNSuccessObserver(1),
+          contrastive_utils.LastNSuccessObserver(5),
+          contrastive_utils.LastNSuccessObserver(10),
           contrastive_utils.DistanceObserver(
               obs_dim=config.obs_dim,
               start_index=config.start_index,
@@ -110,6 +115,9 @@ class DistributedContrastiveGoalsFrozenCritic(distributed_layout_goals_frozen_cr
         evaluator_factories = []
     actor_observers = [
         contrastive_utils.SuccessObserver(),
+        contrastive_utils.LastNSuccessObserver(1),
+        contrastive_utils.LastNSuccessObserver(5),
+        contrastive_utils.LastNSuccessObserver(10),
         contrastive_utils.DistanceObserver(obs_dim=config.obs_dim,
                                            start_index=config.start_index,
                                            end_index=config.end_index)]

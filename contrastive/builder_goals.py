@@ -43,6 +43,7 @@ import tree
 from contrastive.episode_saver_adder import EpisodeAdderSaver
 
 
+
 class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
   """Contrastive RL builder."""
 
@@ -125,6 +126,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
         min_size_to_sample=min_replay_traj,
         samples_per_insert=self._config.samples_per_insert,
         error_buffer=error_buffer)
+
     return [
         reverb.Table(
             name=self._config.replay_table_name,

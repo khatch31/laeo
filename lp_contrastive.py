@@ -116,10 +116,10 @@ def get_program(params):
       env_name, config.start_index, config.end_index, seed)
 
   env_factory_no_extra = lambda seed: env_factory(seed)[0]  # Remove obs_dim.
-  environment, obs_dim = get_env(env_name, config.start_index,
-                                 config.end_index)
+  environment, obs_dim = get_env(env_name, config.start_index, config.end_index)
   assert (environment.action_spec().minimum == -1).all()
   assert (environment.action_spec().maximum == 1).all()
+  environment.reset()
   config.obs_dim = obs_dim
   config.max_episode_steps = getattr(environment, '_step_limit') + 1
   if env_name == 'offline_ant_umaze_diverse':

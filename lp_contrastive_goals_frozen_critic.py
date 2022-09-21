@@ -138,6 +138,10 @@ def get_program(params):
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
+  print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
+  print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
+  if "image" in env_name and "push" in env_name:
+      print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner_goals_frozen_critic", FLAGS.description, f"seed_{seed}")
 
   group_name="_".join([params["env_name"], "learner_goals_frozen_critic", FLAGS.description])

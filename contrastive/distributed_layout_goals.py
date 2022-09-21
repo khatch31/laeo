@@ -42,6 +42,8 @@ from contrastive.default_logger import make_default_logger
 from glob import glob
 import os
 
+
+
 ActorId = int
 AgentNetwork = Any
 PolicyNetwork = Any
@@ -237,30 +239,52 @@ class DistributedLayoutGoals:
           break
 
 
-    if self._builder._config.env_name.startswith('offline_fetch'):
+    use_image_obs = self._builder._config.use_image_obs
+    if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
 
+        if expert_goals is None:
+            expert_goals_list = []
+
         episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
-        episode_files = sorted(episode_files, key=get_ep_no)
-        # j = 0
+        # episode_files = sorted(episode_files, key=get_ep_no)
+        episode_files = sorted(episode_files, key=get_ep_no, reverse=True)
+        j = 0
         for episode_file in tqdm.tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
-            # j += 1
-            # if j > 1000:
-            #     break
+            j += 1
+            if j > 500:
+                break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
                 episode = {k: episode[k] for k in episode.keys()}
 
             assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
+            if use_image_obs:
+                assert len(episode["observation"]) == len(episode["image"])
+
+            if expert_goals is None and episode["reward"].sum() > 0:
+                success_idxs = np.nonzero(episode["reward"])[0]
+                # success_observations = episode["observation"][success_idxs]
+                for idx in success_idxs:
+                    if use_image_obs:
+                        assert episode["image"][idx].shape[0] == self._obs_dim # Should be the same regardless of slicing, goal image stored seperately in data
+                        expert_goals_list.append(episode["image"][idx][:self._obs_dim])#.astype(np.float32))
+                    else:
+                        expert_goals_list.append(episode["observation"][idx][:self._obs_dim])
 
             for t in range(episode["observation"].shape[0]):
+                if use_image_obs:
+                    obs = np.concatenate((episode['image'][t], episode['goal_image']), axis=0)#.astype(np.float32)
+                else:
+                    obs = episode['observation'][t]
+
                 ts = dm_env.TimeStep(
                     step_type=episode["step_type"][t],
                     reward=episode['reward'][t],
                     discount=episode["discount"][t],
-                    observation=episode['observation'][t],
+                    observation=obs,
                 )
                 if t == 0:
                     assert episode["step_type"][t] == dm_env.StepType.FIRST
@@ -268,6 +292,15 @@ class DistributedLayoutGoals:
                 else:
                     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
                     adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+
+        if expert_goals is None:
+            N_EXAMPLES = 200
+            idxs = np.arange(len(expert_goals_list))
+            np.random.shuffle(idxs)
+            idxs = idxs[:N_EXAMPLES]
+            expert_goals = [expert_goals_list[i] for i in idxs]
+            expert_goals = np.stack(expert_goals)
+
 
     iterator = self._builder.make_dataset_iterator(replay)
 
@@ -382,12 +415,12 @@ class DistributedLayoutGoals:
       return self._builder.make_actor(
           random_key, policy_network, variable_source=variable_source)
 
-    with program.group('evaluator'):
-      for evaluator in self._evaluator_factories:
-        evaluator_key, key = jax.random.split(key)
-        program.add_node(
-            lp.CourierNode(evaluator, evaluator_key, learner, counter,
-                           make_actor))
+    # with program.group('evaluator'):
+    #   for evaluator in self._evaluator_factories:
+    #     evaluator_key, key = jax.random.split(key)
+    #     program.add_node(
+    #         lp.CourierNode(evaluator, evaluator_key, learner, counter,
+    #                        make_actor))
 
     with program.group('actor'):
       for actor_id in range(self._num_actors):

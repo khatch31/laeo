@@ -268,7 +268,7 @@ class DistributedLayout:
         if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
           break
 
-    if self._builder._config.env_name.startswith('offline_fetch'):
+    if self._builder._config.env_name.startswith('offline_fetch')  or self._builder._config.env_name.startswith('offline_push'):
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
 
@@ -299,7 +299,7 @@ class DistributedLayout:
                 else:
                     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
                     adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
-                    
+
     iterator = self._builder.make_dataset_iterator(replay)
 
     dummy_seed = 1

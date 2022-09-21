@@ -32,6 +32,7 @@ class ContrastiveNetworks:
   """Network and pure functions for the Contrastive RL agent."""
   policy_network: networks_lib.FeedForwardNetwork
   q_network: networks_lib.FeedForwardNetwork
+  r_network: networks_lib.FeedForwardNetwork
   log_prob: networks_lib.LogProbFn
   repr_fn: Callable[Ellipsis, networks_lib.NetworkOutput]
   sample: networks_lib.SampleFn
@@ -124,6 +125,11 @@ def make_networks(
       outer = jnp.stack([outer, outer2], axis=-1)
     return outer
 
+  def _reward_fn(obs, action):
+    sa_repr, g_repr, hidden = _repr_fn(obs, action)
+    outer = _combine_repr(sa_repr, g_repr)
+    return outer
+
   def _actor_fn(obs):
     if use_image_obs:
       state, goal = _unflatten_obs(obs)
@@ -142,11 +148,12 @@ def make_networks(
 
   policy = hk.without_apply_rng(hk.transform(_actor_fn))
   critic = hk.without_apply_rng(hk.transform(_critic_fn))
+  reward = hk.without_apply_rng(hk.transform(_reward_fn))
   repr_fn = hk.without_apply_rng(hk.transform(_repr_fn))
 
   # Create dummy observations and actions to create network parameters.
   dummy_action = utils.zeros_like(spec.actions)
-  dummy_obs = utils.zeros_like(spec.observations)
+  dummy_obs = utils.zeros_like(spec.observations)#.astype(np.float32)
   dummy_action = utils.add_batch_dim(dummy_action)
   dummy_obs = utils.add_batch_dim(dummy_obs)
 
@@ -155,6 +162,8 @@ def make_networks(
           lambda key: policy.init(key, dummy_obs), policy.apply),
       q_network=networks_lib.FeedForwardNetwork(
           lambda key: critic.init(key, dummy_obs, dummy_action), critic.apply),
+      r_network=networks_lib.FeedForwardNetwork(
+          lambda key: reward.init(key, dummy_obs, dummy_action), reward.apply),
       repr_fn=repr_fn.apply,
       log_prob=lambda params, actions: params.log_prob(actions),
       sample=lambda params, key: params.sample(seed=key),

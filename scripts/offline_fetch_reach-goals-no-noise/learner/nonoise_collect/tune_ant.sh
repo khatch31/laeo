@@ -48,7 +48,7 @@ python3 -u lp_contrastive.py \
 --env_name=offline_fetch_reach-goals-no-noise \
 --description=nonoise_collect--tune_ant \
 --entropy_coefficient=0 \
---max_number_of_steps=1000000 \
+--max_number_of_steps=10000 \
 --actor_learning_rate=1e-4 \
 --learning_rate=1e-4 \
 --repr_dim=256 \

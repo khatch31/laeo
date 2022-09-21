@@ -33,6 +33,7 @@ import reverb
 from jax.experimental import host_callback as hcb
 from contrastive.default_logger import make_default_logger
 
+
 class TrainingState(NamedTuple):
   """Contains training state for the learner."""
   policy_optimizer_state: optax.OptState
@@ -239,8 +240,12 @@ class ContrastiveLearnerGoals(acme.Learner):
       obs = transitions.observation
       # hcb.id_print(obs[0], what="\n\nobs")
       if config.use_gcbc: # Just does behavioral cloning here?
+        state = obs[:, :config.obs_dim]
+        actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
+        new_actor_obs = jnp.concatenate([state, actor_goal], axis=1)
+        # hcb.id_print(new_actor_obs, what="\n\nnew_actor_obs")
         dist_params = networks.policy_network.apply(
-            policy_params, obs)
+            policy_params, new_actor_obs)
         log_prob = networks.log_prob(dist_params, transitions.action)
         actor_loss = -1.0 * jnp.mean(log_prob)
       else:

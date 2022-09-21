@@ -81,32 +81,41 @@ def load(env_name):
   elif env_name == 'sawyer_window':
     CLASS = SawyerWindow
     max_episode_steps = 150
-  elif "fetch_reach" in env_name:
+  elif "fetch" in env_name:
+      max_episode_steps = 50
       if "offline" in env_name:
           env_name = env_name[:][len("offline_"):]
           print("env_name:", env_name)
 
-      if env_name == 'fetch_reach':
-        CLASS = fetch_envs.FetchReachEnv
-        max_episode_steps = 50
-      elif env_name == "fetch_reach-goals":
-        CLASS = fetch_envs.FetchReachEnvGoals
-        kwargs["add_goal_noise"] = True
-        max_episode_steps = 50
-      elif env_name == 'fetch_reach-goals-no-noise':
-        CLASS = fetch_envs.FetchReachEnvGoals
-        kwargs["add_goal_noise"] = False
-        max_episode_steps = 50
-      elif env_name == 'fetch_push':
-        CLASS = fetch_envs.FetchPushEnv
-        max_episode_steps = 50
-      elif env_name == 'fetch_reach_image':
-        CLASS = fetch_envs.FetchReachImage
-        max_episode_steps = 50
-      elif env_name == 'fetch_push_image':
-        CLASS = fetch_envs.FetchPushImage
-        max_episode_steps = 50
-        kwargs['rand_y'] = True
+      if "fetch_reach" in env_name:
+          # kwargs['camera'] = "camera2"
+          if "image" in env_name:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchReachImageGoals
+              else:
+                  CLASS = fetch_envs.FetchReachImage
+          else:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchReachEnvGoals
+              else:
+                  CLASS = fetch_envs.FetchReachEnv
+      elif "fetch_push" in env_name:
+          if "image" in env_name:
+              kwargs['rand_y'] = True
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchPushImageGoals
+              else:
+                  CLASS = fetch_envs.FetchPushImage
+          else:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchPushEnvGoals
+              else:
+                  CLASS = fetch_envs.FetchPushEnv
+
+      if "goals" in env_name and "no-noise" in env_name:
+          kwargs["add_goal_noise"] = False
+      elif "goals" in env_name:
+          kwargs["add_goal_noise"] = True
 
   elif env_name.startswith('ant_'):
     _, map_name = env_name.split('_')

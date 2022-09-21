@@ -80,6 +80,42 @@ class SuccessObserver(observers_base.EnvLoopObserver):
     }
 
 
+class LastNSuccessObserver(observers_base.EnvLoopObserver):
+  """Measures success by whether any of the rewards in an episode are positive.
+  """
+
+  def __init__(self, n):
+    self._rewards = []
+    self._success = []
+    self._n = n
+
+  def observe_first(self, env, timestep
+                    ):
+    """Observes the initial state."""
+    if self._rewards:
+      # success = np.sum(self._rewards) >= 1
+      last_n_rewards = [self._rewards[-i] for i in range(min(self._n, len(self._rewards)))]
+      success = np.sum(last_n_rewards) >= 1
+      self._success.append(success)
+    self._rewards = []
+
+  def observe(self, env, timestep,
+              action):
+    """Records one environment step."""
+    assert timestep.reward in [0, 1]
+    self._rewards.append(timestep.reward)
+
+  def get_metrics(self):
+    """Returns metrics collected for the current episode."""
+
+    last_n_rewards = [self._rewards[-i] for i in range(min(self._n, len(self._rewards)))]
+
+    return {
+        f'last_{self._n}_success': float(np.sum(last_n_rewards) >= 1),
+        f'last_{self._n}_success_1000': np.mean(self._success[-1000:]),
+    }
+
+
 class SavingObserver(observers_base.EnvLoopObserver):
   """Measures success by whether any of the rewards in an episode are positive.
   """

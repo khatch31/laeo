@@ -19,14 +19,15 @@ r"""Example running contrastive RL in JAX.
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
-
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
-
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/crl2/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
@@ -52,6 +53,7 @@ import os
 import shutil
 
 from contrastive.wandb_logger import WANDBLogger
+
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
@@ -83,6 +85,9 @@ flags.DEFINE_float('bc_coef', 0, 'description.')
 flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
+flags.DEFINE_bool('use_gcbc', False, 'description.')
+
+
 
 
 @functools.lru_cache()
@@ -136,9 +141,18 @@ def get_program(params):
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
-  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner_goals", FLAGS.description, f"seed_{seed}")
+  print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
+  print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
+  if "image" in env_name and "push" in env_name:
+      print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
-  group_name="_".join([params["env_name"], "learner_goals", FLAGS.description])
+  algo = "learner_goals"
+  if FLAGS.use_gcbc:
+      algo = "bc"
+
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
+
+  group_name="_".join([params["env_name"], algo if not FLAGS.use_gcbc else "bc", FLAGS.description])
   name=f"seed_{seed}"
   wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
                             params,
@@ -221,6 +235,8 @@ def main(_):
 
   params["bc_coef"] = FLAGS.bc_coef
   params["twin_q"] = FLAGS.twin_q
+
+  params["use_gcbc"] = FLAGS.use_gcbc
 
   if 'ant_' in env_name:
     params['end_index'] = 2

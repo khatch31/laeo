@@ -1,0 +1,105 @@
+pyclient can't import symbol thing
+
+Traceback (most recent call last):
+  File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 48, in <module>
+    import contrastive
+  File "/iris/u/khatch/contrastive_rl/contrastive/__init__.py", line 18, in <module>
+    from contrastive.agents import DistributedContrastive
+  File "/iris/u/khatch/contrastive_rl/contrastive/agents.py", line 21, in <module>
+    from acme import specs
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/acme/__init__.py", line 35, in <module>
+    from acme.environment_loop import EnvironmentLoop
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/acme/environment_loop.py", line 26, in <module>
+    from acme.utils import signals
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/acme/utils/signals.py", line 22, in <module>
+    import launchpad
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/launchpad/__init__.py", line 36, in <module>
+    from launchpad.nodes.courier.node import CourierHandle
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/launchpad/nodes/courier/node.py", line 21, in <module>
+    import courier
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/courier/__init__.py", line 26, in <module>
+    from courier.python.client import Client  # pytype: disable=import-error
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/courier/python/client.py", line 30, in <module>
+    from courier.python import py_client
+ImportError: /iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/courier/python/py_client.so: undefined symbol: _ZN4absl12lts_2021032414ascii_internal13kPropertyBitsE
+
+pip install tensorflow==2.8.2
+
+
+Traceback (most recent call last):
+  File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 48, in <module>
+    import contrastive
+  File "/iris/u/khatch/contrastive_rl/contrastive/__init__.py", line 18, in <module>
+    from contrastive.agents import DistributedContrastive
+  File "/iris/u/khatch/contrastive_rl/contrastive/agents.py", line 24, in <module>
+    from contrastive import builder
+  File "/iris/u/khatch/contrastive_rl/contrastive/builder.py", line 26, in <module>
+    from acme.agents.jax import actor_core as actor_core_lib
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/acme/agents/jax/actor_core.py", line 22, in <module>
+    from acme.jax import networks as networks_lib
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/acme/jax/networks/__init__.py", line 38, in <module>
+    from acme.jax.networks.distributional import CategoricalHead
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/acme/jax/networks/distributional.py", line 27, in <module>
+    tfd = tfp.distributions
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/python/internal/lazy_loader.py", line 53, in __getattr__
+    module = self._load()
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/python/internal/lazy_loader.py", line 40, in _load
+    module = importlib.import_module(self.__name__)
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/substrates/jax/__init__.py", line 41, in <module>
+    from tensorflow_probability.substrates.jax import bijectors
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/substrates/jax/bijectors/__init__.py", line 19, in <module>
+    from tensorflow_probability.substrates.jax.bijectors.absolute_value import AbsoluteValue
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/substrates/jax/bijectors/absolute_value.py", line 17, in <module>
+    from tensorflow_probability.python.internal.backend.jax.compat import v2 as tf
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/python/internal/backend/jax/__init__.py", line 18, in <module>
+    from tensorflow_probability.python.internal.backend.jax import bitwise
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/python/internal/backend/jax/bitwise.py", line 19, in <module>
+    from tensorflow_probability.python.internal.backend.jax import _utils as utils
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow_probability/python/internal/backend/jax/_utils.py", line 25, in <module>
+    from tensorflow.python.ops import array_ops  # pylint: disable=g-direct-tensorflow-import,g-import-not-at-top,unused-import
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow/__init__.py", line 473, in <module>
+    keras._load()
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/tensorflow/python/util/lazy_loader.py", line 41, in _load
+    module = importlib.import_module(self.__name__)
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/__init__.py", line 25, in <module>
+    from keras import models
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/models.py", line 20, in <module>
+    from keras import metrics as metrics_module
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/metrics.py", line 27, in <module>
+    from keras import activations
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/activations.py", line 20, in <module>
+    from keras.layers import advanced_activations
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/layers/__init__.py", line 24, in <module>
+    from keras.engine.input_layer import Input
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/engine/input_layer.py", line 21, in <module>
+    from keras.engine import base_layer
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/engine/base_layer.py", line 41, in <module>
+    from keras.mixed_precision import loss_scale_optimizer
+  File "/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/keras/mixed_precision/loss_scale_optimizer.py", line 1180, in <module>
+    mixed_precision._register_wrapper_optimizer_cls(optimizer_v2.OptimizerV2,
+AttributeError: module 'tensorflow.python.training.experimental.mixed_precision' has no attribute '_register_wrapper_optimizer_cls'
+
+pip uninstall keras-nightly
+
+
+
+Traceback (most recent call last):
+  File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 312, in <module>
+    app.run(main)
+  File "/iris/u/khatch/anaconda3/envs/crl/lib/python3.9/site-packages/absl/app.py", line 308, in run
+    _run_main(main, args)
+  File "/iris/u/khatch/anaconda3/envs/crl/lib/python3.9/site-packages/absl/app.py", line 254, in _run_main
+    sys.exit(main(argv))
+  File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 306, in main
+    program = get_program(params)
+  File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 184, in get_program
+    return agent.build()
+  File "/iris/u/khatch/contrastive_rl/contrastive/distributed_layout_goals.py", line 388, in build
+    replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
+TypeError: __init__() got an unexpected keyword argument 'checkpoint_time_delta_minutes'
+
+pip install dm-launchpad==0.5.2

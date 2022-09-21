@@ -62,23 +62,21 @@ class FetchReachEnv(reach.FetchReachEnv):
 
 class FetchReachEnvGoals(FetchReachEnv):
   def __init__(self, add_goal_noise=False):
-      super(FetchReachEnvGoals, self).__init__()
       self._add_goal_noise = add_goal_noise
-
+      super(FetchReachEnvGoals, self).__init__()
 
   def _sample_goal(self): ###===### ###---###
       # return np.array([1.4, 0.8, 0.6])
-      return np.array([1.3, 0.3, 0.9]) #, 0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
+      goal =  np.array([1.3, 0.3, 0.9]) #, 0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
+      if self._add_goal_noise:
+          goal += np.random.normal(scale=0.01, size=goal.shape)
+      return goal
 
   def get_expert_goals(self):
       goals = np.zeros((10, 10))
       goals[:, 3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
       goals[:, :3] = self._sample_goal()
-
-      if self._add_goal_noise:
-          goals += np.random.normal(scale=0.01, size=goals.shape)
       return goals
-
 
 class FetchPushEnv(push.FetchPushEnv):
   """Wrapper for the FetchPush environment."""
@@ -118,6 +116,26 @@ class FetchPushEnv(push.FetchPushEnv):
     g[start_index:end_index] = observation['desired_goal']
     return np.concatenate([s, g]).astype(np.float32)
 
+
+
+class FetchPushEnvGoals(FetchPushEnv):
+    def __init__(self, *args, add_goal_noise=False, **kwargs):
+        self._add_goal_noise = add_goal_noise
+        super(FetchPushEnvGoals, self).__init__(*args, **kwargs)
+
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.9, 0.42469975])
+        if self._add_goal_noise:
+            goal += np.random.normal(scale=0.01, size=goal.shape)
+        return goal
+
+    def get_expert_goals(self):
+        # assert False
+        # goals = np.zeros((10, 10))
+        # goals[:, 3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
+        # goals[:, :3] = self._sample_goal()
+        # return goals
+        return None
 
 class FetchReachImage(reach.FetchReachEnv):
   """Wrapper for the FetchReach environment with image observations."""
@@ -183,10 +201,31 @@ class FetchReachImage(reach.FetchReachEnv):
 
   def _viewer_setup(self):
     super(FetchReachImage, self)._viewer_setup()
+    # self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.5])
+    # self.viewer.cam.distance = 0.8
+    # self.viewer.cam.azimuth = 180
+    # self.viewer.cam.elevation = -30
+
     self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.5])
-    self.viewer.cam.distance = 0.8
-    self.viewer.cam.azimuth = 180
+    self.viewer.cam.distance = 1.4
+    self.viewer.cam.azimuth = 120
     self.viewer.cam.elevation = -30
+
+
+class FetchReachImageGoals(FetchReachImage):
+  def __init__(self, add_goal_noise=False):
+      self._add_goal_noise = add_goal_noise
+      super(FetchReachImageGoals, self).__init__()
+
+  def _sample_goal(self): ###===### ###---###
+      # return np.array([1.4, 0.8, 0.6])
+      goal =  np.array([1.3, 0.3, 0.9]) #, 0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
+      if self._add_goal_noise:
+          goal += np.random.normal(scale=0.01, size=goal.shape)
+      return goal
+
+  def get_expert_goals(self):
+      return None
 
 
 class FetchPushImage(push.FetchPushEnv):
@@ -297,5 +336,25 @@ class FetchPushImage(push.FetchPushEnv):
       self.viewer.cam.distance = 0.65
       self.viewer.cam.azimuth = 90
       self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera3':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
     else:
       raise NotImplementedError
+
+
+class FetchPushImageGoals(FetchPushImage):
+    def __init__(self, *args, add_goal_noise=False, **kwargs):
+        self._add_goal_noise = add_goal_noise
+        super(FetchPushImageGoals, self).__init__(*args, **kwargs)
+
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.9, 0.42469975])
+        if self._add_goal_noise:
+            goal += np.random.normal(scale=0.01, size=goal.shape)
+        return goal
+
+    def get_expert_goals(self):
+        return None

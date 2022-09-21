@@ -237,9 +237,12 @@ class DistributedLayoutGoalsFrozenCritic:
         if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
           break
 
-    if self._builder._config.env_name.startswith('offline_fetch'):
+    if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
+
+        if expert_goals is None:
+            expert_goals_list = []
 
         episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
@@ -255,6 +258,13 @@ class DistributedLayoutGoalsFrozenCritic:
 
             assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
 
+            if expert_goals is None and episode["reward"].sum() > 0:
+                success_idxs = np.nonzero(episode["reward"])[0]
+                # success_observations = episode["observation"][success_idxs]
+                for idx in success_idxs:
+                    expert_goals_list.append(episode["observation"][idx][:self._obs_dim])
+
+
             for t in range(episode["observation"].shape[0]):
                 ts = dm_env.TimeStep(
                     step_type=episode["step_type"][t],
@@ -268,6 +278,15 @@ class DistributedLayoutGoalsFrozenCritic:
                 else:
                     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
                     adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+
+        if expert_goals is None:
+            N_EXAMPLES = 200
+            idxs = np.arange(len(expert_goals_list))
+            np.random.shuffle(idxs)
+            idxs = idxs[:N_EXAMPLES]
+            expert_goals = [expert_goals_list[i] for i in idxs]
+            expert_goals = np.stack(expert_goals)
+
 
     iterator = self._builder.make_dataset_iterator(replay)
 
