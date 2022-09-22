@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=iris
-#SBATCH --time=72:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="nonoise_collect_alr=1e-5,clr=1e-5_entropy"
 #SBATCH --gres=gpu:1

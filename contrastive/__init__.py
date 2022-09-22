@@ -41,5 +41,7 @@ from contrastive.learning_goals_frozen_critic import ContrastiveLearnerGoalsFroz
 from contrastive.agents_goals_frozen_critic import DistributedContrastiveGoalsFrozenCritic
 from contrastive.builder_goals_frozen_critic import ContrastiveBuilderGoalsFrozenCritic
 
+# from contrastive.losses import sigmoid_positive_unlabeled_loss
+
 # from contrastive.episode_saver_adder import EpisodeAdderSaver
 ###---###

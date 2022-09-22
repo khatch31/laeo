@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=iris
-#SBATCH --time=72:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="collect--tune_ant"
 #SBATCH --gres=gpu:1

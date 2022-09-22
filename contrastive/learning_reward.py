@@ -30,6 +30,9 @@ import jax.numpy as jnp
 import optax
 import reverb
 
+from contrastive.losses import sigmoid_positive_unlabeled_loss
+
+
 from jax.experimental import host_callback as hcb
 from contrastive.default_logger import make_default_logger
 
@@ -61,6 +64,7 @@ class ContrastiveLearnerReward(acme.Learner):
       q_optimizer,
       r_optimizer,
       iterator,
+      val_iterator,
       counter,
       logger,
       obs_to_goal,
@@ -95,6 +99,7 @@ class ContrastiveLearnerReward(acme.Learner):
 
     print("\nadaptive_entropy_coefficient:", adaptive_entropy_coefficient)
     print("self._num_sgd_steps_per_step:", self._num_sgd_steps_per_step)
+    print("config.jit:", config.jit)
     print()
 
     if adaptive_entropy_coefficient:
@@ -152,8 +157,10 @@ class ContrastiveLearnerReward(acme.Learner):
       I = jnp.eye(batch_size)  # pylint: disable=invalid-name
       # hcb.id_print(transitions.observation, what="\n\transitions.observation")
       # hcb.id_print(transitions.observation.shape, what="transitions.observation.shape")
+      # logits = networks.q_network.apply(
+      #     q_params, transitions.observation, transitions.action)
       logits = networks.q_network.apply(
-          q_params, transitions.observation, transitions.action)
+          q_params, transitions.observation, transitions.action) ###%%%###
 
 
       if config.use_td:
@@ -244,46 +251,43 @@ class ContrastiveLearnerReward(acme.Learner):
                     transitions,
                     key,
                     expert_goals):
+      batch_size = transitions.observation.shape[0]
 
-        # obs = transitions.observation
-        # hcb.id_print(obs[0], what="\n\nobs")
-        #
-        # reward = transitions.reward
-        # hcb.id_print(reward[0], what="\n\nreward")
-        #
-        #
-        # logits = networks.r_network.apply(r_params, transitions.observation, transitions.action)
+      s, g = jnp.split(transitions.observation, [config.obs_dim], axis=1)
 
-        ######
-        batch_size = transitions.observation.shape[0]
-        # Note: We might be able to speed up the computation for some of the
-        # baselines to making a single network that returns all the values. This
-        # avoids computing some of the underlying representations multiple times.
+      idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
+      obs_and_goals = jnp.concatenate([s, expert_goals[idxs]], axis=0)
+      logits = networks.r_network.apply(r_params, obs_and_goals)
+      # (49, 49) = (batch_size, batch_size)
 
-        I = jnp.eye(batch_size)  # pylint: disable=invalid-name
-        logits = networks.r_network.apply(r_params, transitions.observation, transitions.action)
-        # logits = networks.q_network.apply(r_params, transitions.observation, transitions.action)
-        hcb.id_print(logits, what="\n\nlogits")
+      labels_neg = jnp.zeros(batch_size)
+      labels_pos = jnp.ones(batch_size)
+      labels = jnp.concatenate([labels_neg, labels_pos], axis=0)
+      labels = jnp.expand_dims(labels, axis=-1)
 
-        def loss_fn(_logits):
-            return optax.sigmoid_binary_cross_entropy(logits=_logits, labels=I)
+      if config.reward_loss_type == "bce":
+          loss = optax.sigmoid_binary_cross_entropy(logits=logits, labels=labels)
+      elif config.reward_loss_type == "pu":
+          loss = sigmoid_positive_unlabeled_loss(logits=logits, labels=labels)
+      else:
+          raise ValueError(f"Unsupported loss type, config.reward_loss_type: {config.reward_loss_type}")
 
-        loss = loss_fn(logits)
+      loss = jnp.mean(loss)
+      assert len(logits.shape) == 2
+      # correct = jnp.squeeze(logits) == jnp.squeeze(labels)
+      logits_neg = logits[:batch_size]
+      logits_pos = logits[batch_size:]
+      logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+      metrics = {
+          'binary_accuracy': jnp.mean((logits > 0) == labels),
+          # 'categorical_accuracy': jnp.mean(correct),
+          'logits_pos': logits_pos,
+          'logits_neg': logits_neg,
+          'logsumexp': logsumexp.mean(),
+      }
 
-        loss = jnp.mean(loss)
-        correct = (jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1))
-        logits_pos = jnp.sum(logits * I) / jnp.sum(I)
-        logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
-        logsumexp = jax.nn.logsumexp(logits, axis=1)**2
-        metrics = {
-            'binary_accuracy': jnp.mean((logits > 0) == I),
-            'categorical_accuracy': jnp.mean(correct),
-            'logits_pos': logits_pos,
-            'logits_neg': logits_neg,
-            'logsumexp': logsumexp.mean(),
-        }
+      return loss, metrics
 
-        return loss, metrics
 
     def actor_loss(policy_params,
                    q_params,
@@ -355,7 +359,6 @@ class ContrastiveLearnerReward(acme.Learner):
         if len(q_action.shape) == 3:  # twin q trick
           assert q_action.shape[2] == 2
           q_action = jnp.min(q_action, axis=-1)
-
         if config.exp_q_action:
             hcb.id_print(q_action, what="(before) q_action")
             q_action = jnp.exp(q_action)
@@ -383,64 +386,30 @@ class ContrastiveLearnerReward(acme.Learner):
     alpha_grad = jax.value_and_grad(alpha_loss)
     critic_grad = jax.value_and_grad(critic_loss, has_aux=True)
     actor_grad = jax.value_and_grad(actor_loss)
-    reward_grad = jax.value_and_grad(reward_loss)
+    reward_grad = jax.value_and_grad(reward_loss, has_aux=True)
 
     def update_step(
         state,
-        transitions,
+        all_transitions,
     ):
 
+      transitions, val_transitions = all_transitions
       key, key_alpha, key_critic, key_actor, key_reward = jax.random.split(state.key, 5)
-      # if adaptive_entropy_coefficient:
-      #   alpha_loss, alpha_grads = alpha_grad(state.alpha_params,
-      #                                        state.policy_params, transitions,
-      #                                        key_alpha)
-      #   alpha = jnp.exp(state.alpha_params)
-      # else:
-      #   alpha = config.entropy_coefficient
 
-      # if not config.use_gcbc:
-      #   (critic_loss, critic_metrics), critic_grads = critic_grad(
-      #       state.q_params, state.policy_params, state.target_q_params,
-      #       transitions, key_critic)
+      (val_reward_loss, val_reward_metrics), _ = reward_grad(
+          state.r_params, val_transitions, key_reward, expert_goals)
 
-      # actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
-      #                                      alpha, transitions, key_actor, expert_goals)
-      #
-      # # Apply policy gradients
-      # actor_update, policy_optimizer_state = policy_optimizer.update(
-      #     actor_grads, state.policy_optimizer_state)
-      # policy_params = optax.apply_updates(state.policy_params, actor_update)
-
-
-      reward_loss, reward_grads = reward_grad(state.r_params, transitions, key_reward, expert_goals)
+      (reward_loss, reward_metrics), reward_grads = reward_grad(
+          state.r_params, transitions, key_reward, expert_goals)
 
       # Apply reward gradients
       reward_update, r_optimizer_state = r_optimizer.update(
           reward_grads, state.r_optimizer_state)
       r_params = optax.apply_updates(state.r_params, reward_update)
 
-      # # Apply critic gradients
-      # if config.use_gcbc:
-      #   metrics = {}
-      #   critic_loss = 0.0
-      #   q_params = state.q_params
-      #   q_optimizer_state = state.q_optimizer_state
-      #   new_target_q_params = state.target_q_params
-      # else:
-      #   critic_update, q_optimizer_state = q_optimizer.update(
-      #       critic_grads, state.q_optimizer_state)
-      #
-      #   q_params = optax.apply_updates(state.q_params, critic_update)
-      #
-      #   new_target_q_params = jax.tree_map(
-      #       lambda x, y: x * (1 - config.tau) + y * config.tau,
-      #       state.target_q_params, q_params)
-      #   metrics = critic_metrics
+      metrics = {"train_" + key:val for key, val in reward_metrics.items()}
+      metrics.update({"val_" + key:val for key, val in val_reward_metrics.items()})
 
-
-
-      metrics = {}
       critic_loss = 0.0
       q_params = state.q_params
       q_optimizer_state = state.q_optimizer_state
@@ -450,10 +419,15 @@ class ContrastiveLearnerReward(acme.Learner):
       policy_params = state.policy_params
       policy_optimizer_state = state.policy_optimizer_state
 
+      # reward_loss = 0.0
+      # r_params = state.r_params
+      # r_optimizer_state = state.r_optimizer_state
+
       metrics.update({
-          'critic_loss': critic_loss,
-          'actor_loss': actor_loss,
+          # 'critic_loss': critic_loss,
+          # 'actor_loss': actor_loss,
           'reward_loss': reward_loss,
+          'val_reward_loss': val_reward_loss,
       })
 
       new_state = TrainingState2(
@@ -466,19 +440,6 @@ class ContrastiveLearnerReward(acme.Learner):
           target_q_params=new_target_q_params,
           key=key,
       )
-      if adaptive_entropy_coefficient:
-        # Apply alpha gradients
-        alpha_update, alpha_optimizer_state = alpha_optimizer.update(
-            alpha_grads, state.alpha_optimizer_state)
-        alpha_params = optax.apply_updates(state.alpha_params, alpha_update)
-        metrics.update({
-            'alpha_loss': alpha_loss,
-            'alpha': jnp.exp(alpha_params),
-        })
-        new_state = new_state._replace(
-            alpha_optimizer_state=alpha_optimizer_state,
-            alpha_params=alpha_params)
-
       return new_state, metrics
 
     # General learner book-keeping and loggers.
@@ -491,6 +452,7 @@ class ContrastiveLearnerReward(acme.Learner):
 
     # Iterator on demonstration transitions.
     self._iterator = iterator
+    self._val_iterator = val_iterator
 
     update_step = utils.process_multiple_batches(update_step,
                                                  config.num_sgd_steps_per_step)
@@ -540,7 +502,11 @@ class ContrastiveLearnerReward(acme.Learner):
     with jax.profiler.StepTraceAnnotation('step', step_num=self._counter):
       sample = next(self._iterator)
       transitions = types.Transition(*sample.data)
-      self._state, metrics = self._update_step(self._state, transitions)
+
+      val_sample = next(self._val_iterator)
+      val_transitions = types.Transition(*val_sample.data)
+
+      self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
 
     # Compute elapsed time.
     timestamp = time.time()
@@ -563,6 +529,7 @@ class ContrastiveLearnerReward(acme.Learner):
     variables = {
         'policy': self._state.policy_params,
         'critic': self._state.q_params,
+        'reward': self._state.r_params,
     }
     return [variables[name] for name in names]
 

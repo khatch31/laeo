@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --partition=iris-hi
-#SBATCH --time=72:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="nonoise_collect--ta_bc0.5"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
-#SBATCH --exclude=iris5,iris6
+#SBATCH --exclude=iris4,iris5,iris6
 
 which python3
 cd /iris/u/khatch/contrastive_rl

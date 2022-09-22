@@ -69,7 +69,7 @@ class ContrastiveConfigReward:
   use_gcbc: bool = False
   use_image_obs: bool = False
   random_goals: float = 0.5
-  jit: bool = False # 
+  jit: bool = False
   add_mc_to_td: bool = False
   resample_neg_actions: bool = False
   bc_coef: float = 0.0
@@ -84,6 +84,9 @@ class ContrastiveConfigReward:
   exp_q_action: bool = False
 
   max_checkpoints_to_keep: int = 1
+
+  reward_loss_type: str = "bce"
+  val_size: float = 0.1
 
 
 def target_entropy_from_env_spec(

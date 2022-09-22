@@ -76,6 +76,7 @@ class ContrastiveBuilderReward(builders.ActorLearnerBuilder):
       random_key,
       networks,
       dataset,
+      val_dataset,
       replay_client = None,
       counter = None,
       expert_goals=None, ###===### ###---###
@@ -94,6 +95,7 @@ class ContrastiveBuilderReward(builders.ActorLearnerBuilder):
         q_optimizer=q_optimizer,
         r_optimizer=r_optimizer,
         iterator=dataset,
+        val_iterator=val_dataset,
         counter=counter,
         logger=self._logger_fn(),
         obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,

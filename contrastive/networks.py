@@ -125,10 +125,28 @@ def make_networks(
       outer = jnp.stack([outer, outer2], axis=-1)
     return outer
 
-  def _reward_fn(obs, action):
-    sa_repr, g_repr, hidden = _repr_fn(obs, action)
-    outer = _combine_repr(sa_repr, g_repr)
-    return outer
+  # def _reward_fn(obs, action):
+  #   sa_repr, g_repr, hidden = _repr_fn(obs, action)
+  #   outer = _combine_repr(sa_repr, g_repr)
+  #   return outer
+
+  def _reward_fn(obs):
+    if use_image_obs:
+      state, goal = _unflatten_obs(obs)
+      # obs = jnp.concatenate([state, goal], axis=-1)
+      obs = state
+      obs = TORSO()(obs)
+    network = hk.Sequential([
+        hk.nets.MLP(
+            list(hidden_layer_sizes) + [1],
+            w_init=hk.initializers.VarianceScaling(1.0, 'fan_in', 'uniform'),
+            activation=jax.nn.relu,
+            # activate_final=True),
+            activate_final=False),
+        # networks_lib.NormalTanhDistribution(num_dimensions,
+        #                                     min_scale=actor_min_std),
+    ])
+    return network(obs)
 
   def _actor_fn(obs):
     if use_image_obs:
@@ -162,8 +180,10 @@ def make_networks(
           lambda key: policy.init(key, dummy_obs), policy.apply),
       q_network=networks_lib.FeedForwardNetwork(
           lambda key: critic.init(key, dummy_obs, dummy_action), critic.apply),
+      # r_network=networks_lib.FeedForwardNetwork(
+      #     lambda key: reward.init(key, dummy_obs, dummy_action), reward.apply),
       r_network=networks_lib.FeedForwardNetwork(
-          lambda key: reward.init(key, dummy_obs, dummy_action), reward.apply),
+          lambda key: reward.init(key, dummy_obs[:, :obs_dim]), reward.apply),
       repr_fn=repr_fn.apply,
       log_prob=lambda params, actions: params.log_prob(actions),
       sample=lambda params, key: params.sample(seed=key),

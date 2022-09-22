@@ -73,10 +73,11 @@ class FetchReachEnvGoals(FetchReachEnv):
       return goal
 
   def get_expert_goals(self):
-      goals = np.zeros((10, 10))
-      goals[:, 3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
-      goals[:, :3] = self._sample_goal()
-      return goals
+      # goals = np.zeros((10, 10))
+      # goals[:, 3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
+      # goals[:, :3] = self._sample_goal()
+      # return goals
+      return None
 
 class FetchPushEnv(push.FetchPushEnv):
   """Wrapper for the FetchPush environment."""

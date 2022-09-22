@@ -88,6 +88,8 @@ flags.DEFINE_bool('twin_q', True, 'description.')
 flags.DEFINE_bool('save_sim_state', False, 'description.')
 flags.DEFINE_bool('use_gcbc', False, 'description.')
 
+flags.DEFINE_string('reward_loss_type', "bce", 'description.')
+
 
 
 
@@ -241,6 +243,8 @@ def main(_):
   params["twin_q"] = FLAGS.twin_q
 
   params["use_gcbc"] = FLAGS.use_gcbc
+
+  params["reward_loss_type"] = FLAGS.reward_loss_type
 
   if 'ant_' in env_name:
     params['end_index'] = 2
