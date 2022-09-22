@@ -364,7 +364,7 @@ class DistributedLayout:
                                             logger, observers=self._observers)
 
   def coordinator(self, counter, max_actor_steps):
-    if self._builder._config.env_name.startswith('offline_ant') or self._num_actors == 0:  # pytype: disable=attribute-error, pylint: disable=protected-access
+    if self._builder._config.env_name.startswith('offline'):  # pytype: disable=attribute-error, pylint: disable=protected-access
       steps_key = 'learner_steps'
     else:
       steps_key = 'actor_steps'
@@ -383,8 +383,10 @@ class DistributedLayout:
         # return DefaultCheckpointer("/iris/u/khatch/contrastive_rl/results/trash_results/fetch_reach/learner/default/seed_0/checkpoints/replay_buffer")
         return DefaultCheckpointer(os.path.join(self._logdir, "checkpoints", "replay_buffer"))
 
-    replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
-    # replay_node = lp.ReverbNode(self.replay)
+    if self._builder._config.env_name.startswith('offline'):
+        replay_node = lp.ReverbNode(self.replay)
+    else:
+        replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
 
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:

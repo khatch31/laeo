@@ -31,7 +31,7 @@ from acme.jax import variable_utils
 from acme.utils import counting
 from acme.utils import loggers
 from contrastive import config as contrastive_config
-from contrastive import learning_goals
+from contrastive import learning_reward
 from contrastive import networks as contrastive_networks
 from contrastive import utils as contrastive_utils
 import optax
@@ -50,7 +50,7 @@ from contrastive.episode_saver_adder import EpisodeAdderSaver
 # os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = "0.1"
 
 
-class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
+class ContrastiveBuilderReward(builders.ActorLearnerBuilder):
   """Contrastive RL builder."""
 
   def __init__(
@@ -84,11 +84,15 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
     policy_optimizer = optax.adam(
         learning_rate=self._config.actor_learning_rate, eps=1e-7)
     q_optimizer = optax.adam(learning_rate=self._config.learning_rate, eps=1e-7)
-    return learning_goals.ContrastiveLearnerGoals(
+
+    r_optimizer = optax.adam(learning_rate=self._config.reward_learning_rate, eps=1e-7)
+
+    return learning_reward.ContrastiveLearnerReward(
         networks=networks,
         rng=random_key,
         policy_optimizer=policy_optimizer,
         q_optimizer=q_optimizer,
+        r_optimizer=r_optimizer,
         iterator=dataset,
         counter=counter,
         logger=self._logger_fn(),

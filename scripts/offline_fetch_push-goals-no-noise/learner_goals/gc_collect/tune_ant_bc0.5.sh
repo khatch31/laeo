@@ -2,7 +2,7 @@
 #SBATCH --partition=iris
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="collect--tune_ant"
+#SBATCH --job-name="collect--tune_ant_bc0.5"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -45,9 +45,8 @@ ls -l /usr/local
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals5 \
---env_name=offline_fetch_reach-goals-no-noise \
---description=gc_collect--tune_ant \
---use_gcbc=true \
+--env_name=offline_fetch_push-goals-no-noise \
+--description=gc_collect--tune_ant_bc0.5 \
 --entropy_coefficient=0 \
 --max_number_of_steps=10000 \
 --actor_learning_rate=1e-4 \
@@ -62,6 +61,6 @@ python3 -u lp_contrastive_goals.py \
 --twin_q=true \
 --bc_coef=0.05 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach/learner/collect/seed_0/recorded_data
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_push/learner/collect/seed_0/recorded_data
 
 # --project=contrastive_rl_goals5 \

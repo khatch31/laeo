@@ -2,7 +2,7 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy--ta"
+#SBATCH --job-name="nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy--ta_bc0.5"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --exclude=iris5,iris6
@@ -40,8 +40,8 @@ python3 -u gpu_test.py
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals5 \
---env_name=offline_fetch_reach_image-goals-no-noise \
---description=nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy--ta \
+--env_name=offline_fetch_push_image-goals-no-noise \
+--description=nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy--ta_bc0.5 \
 --entropy_coefficient=0 \
 --max_number_of_steps=10000 \
 --actor_learning_rate=1e-4 \
@@ -54,6 +54,6 @@ python3 -u lp_contrastive_goals.py \
 --batch_size=256 \
 --num_actors=0 \
 --twin_q=true \
---bc_coef=0.05 \
+--bc_coef=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy/seed_0/recorded_data
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_push-goals-no-noise/learner/nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy/seed_0/recorded_data

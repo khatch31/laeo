@@ -2,46 +2,51 @@
 #SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="nonoise_collect_entropy--ta"
+#SBATCH --job-name="nonoise_collect_entropy--tune_ant"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=64G
-#SBATCH --exclude=iris5,iris6
+#SBATCH --mem=32G
+
 
 which python3
 cd /iris/u/khatch/contrastive_rl
 pwd
-source ~/.bashrc
+source /sailhome/khatch/.bashrc
 conda init bash
 source /iris/u/khatch/anaconda3/bin/activate
-conda activate crl2
+conda activate contrastive_rl
 
 unset LD_LIBRARY_PATH
 unset LD_PRELOAD
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco210/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
+# export LD_PRELOAD=$LD_PRELOAD:/usr/lib/x86_64-linux-gnu/libGLEW.so.1.13.0
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sailhome/khatch/.mujoco/mujoco210/bin
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
 echo $SLURM_JOB_GPUS
 export GPUS=$SLURM_JOB_GPUS
-export MUJOCO_GL="egl"
-export XLA_PYTHON_CLIENT_MEM_FRACTION=.7
 
+export MUJOCO_GL="egl"
+# unset LD_PRELOAD
 
 which python3
 nvidia-smi
 pwd
 ls -l /usr/local
 
+# export XLA_PYTHON_CLIENT_PREALLOCATE="false"
+# export XLA_PYTHON_CLIENT_MEM_FRACTION=".1"
 
-python3 -u gpu_test.py
-
-python3 -u lp_contrastive_goals.py \
+python3 -u lp_contrastive_reward.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals5 \
---env_name=offline_fetch_reach_image-goals-no-noise \
---description=nonoise_collect_entropy--ta \
+--env_name=offline_fetch_reach-goals-no-noise \
+--description=nonoise_collect_entropy--tune_ant \
 --entropy_coefficient=0 \
 --max_number_of_steps=10000 \
 --actor_learning_rate=1e-4 \
@@ -51,7 +56,7 @@ python3 -u lp_contrastive_goals.py \
 --hidden_layer_sizes=1024 \
 --max_replay_size=10000000 \
 --actor_min_std=0.1 \
---batch_size=256 \
+--batch_size=1024 \
 --num_actors=0 \
 --twin_q=true \
 --bc_coef=0.05 \

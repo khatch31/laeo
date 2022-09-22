@@ -19,18 +19,19 @@ r"""Example running contrastive RL in JAX.
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
-
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
-
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/crl2/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
-python3 -u lp_contrastive.py \
+python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
---env_name=fetch_reach \
+--env_name=fetch_reach-goals \
 --logdir=/iris/u/khatch/contrastive_rl/trash_results
 
 Run using multi-processing (required for image-based experiments):
@@ -53,6 +54,7 @@ import shutil
 
 from contrastive.wandb_logger import WANDBLogger
 
+
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
 flags.DEFINE_string('env_name', None, 'Env_name.')
@@ -62,11 +64,14 @@ flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
 flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
 flags.DEFINE_float('entropy_coefficient', None, 'description.')
 flags.DEFINE_integer('num_actors', 4, 'description.')
+flags.DEFINE_bool('invert_actor_loss', False, 'description.')
+flags.DEFINE_bool('exp_q_action', False, 'description.')
 
 flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
 flags.DEFINE_integer('batch_size', 256, 'description.')
 flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
 flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('reward_learning_rate', 3e-4, 'description.')
 flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
 flags.DEFINE_integer('repr_dim', 64, 'description.')
 flags.DEFINE_integer('max_replay_size', 1000000, 'description.')
@@ -81,6 +86,9 @@ flags.DEFINE_float('bc_coef', 0, 'description.')
 flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
+flags.DEFINE_bool('use_gcbc', False, 'description.')
+
+
 
 
 @functools.lru_cache()
@@ -100,7 +108,7 @@ def get_program(params):
 
   if params.get('use_image_obs', False) and not params.get('local', False):
   #   print('WARNING: overwriting parameters for image-based tasks.')
-  #   params['num_sgd_steps_per_step'] = 16
+    # params['num_sgd_steps_per_step'] = 16
     params['prefetch_size'] = 16
     # params['num_actors'] = 10
 
@@ -110,7 +118,7 @@ def get_program(params):
     params['num_actors'] = 0
     assert not FLAGS.save_data
 
-  config = contrastive.ContrastiveConfig(**params)
+  config = contrastive.ContrastiveConfigReward(**params)
 
   print("config.num_sgd_steps_per_step:", config.num_sgd_steps_per_step)
 
@@ -118,10 +126,10 @@ def get_program(params):
       env_name, config.start_index, config.end_index, seed)
 
   env_factory_no_extra = lambda seed: env_factory(seed)[0]  # Remove obs_dim.
-  environment, obs_dim = get_env(env_name, config.start_index, config.end_index)
+  environment, obs_dim = get_env(env_name, config.start_index,
+                                 config.end_index)
   assert (environment.action_spec().minimum == -1).all()
   assert (environment.action_spec().maximum == 1).all()
-  environment.reset()
   config.obs_dim = obs_dim
   config.max_episode_steps = getattr(environment, '_step_limit') + 1
   if env_name == 'offline_ant_umaze_diverse':
@@ -134,9 +142,20 @@ def get_program(params):
       hidden_layer_sizes=config.hidden_layer_sizes,
       actor_min_std=config.actor_min_std)
 
-  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner", FLAGS.description, f"seed_{seed}")
+  expert_goals = environment.get_expert_goals()
+  print("\nexpert_goals:\n", expert_goals)
+  print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
+  print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
+  if "image" in env_name and "push" in env_name:
+      print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
-  group_name="_".join([params["env_name"], "learner", FLAGS.description])
+  algo = "reward"
+  if FLAGS.use_gcbc:
+      algo = "bc"
+
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
+
+  group_name="_".join([params["env_name"], algo if not FLAGS.use_gcbc else "bc", FLAGS.description])
   name=f"seed_{seed}"
   wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
                             params,
@@ -148,7 +167,7 @@ def get_program(params):
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
-  agent = contrastive.DistributedContrastive(
+  agent = contrastive.DistributedContrastiveReward(
       seed=seed,
       environment_factory=env_factory_no_extra,
       network_factory=network_factory,
@@ -156,12 +175,15 @@ def get_program(params):
       num_actors=config.num_actors,
       log_to_bigtable=True,
       max_number_of_steps=config.max_number_of_steps,
+      expert_goals=expert_goals,
       logdir=logdir,
       wandblogger=wandblogger,
       save_data=FLAGS.save_data,
       save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),
       data_load_dir=FLAGS.data_load_dir)
+  print("Done with agent init.")
+
   return agent.build()
 
 
@@ -183,7 +205,9 @@ def main(_):
   #                             medium_play,medium_diverse,
   #                             large_play,large_diverse}
   # env_name = 'sawyer_window' ###===###
-  # env_name = 'point_Cross' ###---###
+  # env_name = 'fixed-goal-point_Cross' ###---###
+  # env_name = "fetch_reach"
+
   if FLAGS.env_name:
       env_name = FLAGS.env_name
 
@@ -199,11 +223,14 @@ def main(_):
   params["max_checkpoints_to_keep"] = FLAGS.max_checkpoints_to_keep
   params["entropy_coefficient"] = FLAGS.entropy_coefficient
   params["num_actors"] = FLAGS.num_actors
+  params["invert_actor_loss"] = FLAGS.invert_actor_loss
+  params["exp_q_action"] = FLAGS.exp_q_action
 
   params["max_number_of_steps"] = FLAGS.max_number_of_steps
   params["batch_size"] = FLAGS.batch_size
   params["actor_learning_rate"] = FLAGS.actor_learning_rate
   params["learning_rate"] = FLAGS.learning_rate
+  params["reward_learning_rate"] = FLAGS.reward_learning_rate
   params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
   params["repr_dim"] = FLAGS.repr_dim
   params["max_replay_size"] = FLAGS.max_replay_size
@@ -212,6 +239,8 @@ def main(_):
 
   params["bc_coef"] = FLAGS.bc_coef
   params["twin_q"] = FLAGS.twin_q
+
+  params["use_gcbc"] = FLAGS.use_gcbc
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -247,7 +276,6 @@ def main(_):
         'random_goals': 0.0,
     })
 
-
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):
     params.update({
@@ -281,7 +309,10 @@ def main(_):
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.
+
   lp.launch(program, terminal='current_terminal')
+  # local_resources = dict(actor=lp.PythonProcess(env=dict(XLA_PYTHON_CLIENT_MEM_FRACTION='0.1')))
+  # lp.launch(program, terminal='current_terminal', local_resources=local_resources)
 
 if __name__ == '__main__':
   app.run(main)

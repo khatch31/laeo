@@ -1,4 +1,7 @@
-pyclient can't import symbol thing
+================================================================
+ImportError: /iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/
+courier/python/py_client.so: undefined symbol: _ZN4absl12lts_2021032414ascii_internal13kPropertyBitsE
+================================================================
 
 Traceback (most recent call last):
   File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 48, in <module>
@@ -25,6 +28,9 @@ ImportError: /iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-pac
 
 pip install tensorflow==2.8.2
 
+================================================================
+AttributeError: module 'tensorflow.python.training.experimental.mixed_precision' has no attribute '_register_wrapper_optimizer_cls'
+================================================================
 
 Traceback (most recent call last):
   File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 48, in <module>
@@ -86,6 +92,9 @@ AttributeError: module 'tensorflow.python.training.experimental.mixed_precision'
 pip uninstall keras-nightly
 
 
+================================================================
+TypeError: __init__() got an unexpected keyword argument 'checkpoint_time_delta_minutes'
+================================================================
 
 Traceback (most recent call last):
   File "/iris/u/khatch/contrastive_rl/lp_contrastive_goals.py", line 312, in <module>
@@ -103,3 +112,41 @@ Traceback (most recent call last):
 TypeError: __init__() got an unexpected keyword argument 'checkpoint_time_delta_minutes'
 
 pip install dm-launchpad==0.5.2
+
+
+================================================================
+Terrible CUDNN error
+
+*** jaxlib.xla_extension.XlaRuntimeError: UNKNOWN: Failed to determine best cudnn convolution algorithm for:
+AND
+Profiling failure on cuDNN engine 0: UNKNOWN: CUDNN_STATUS_EXECUTION_FAILED
+================================================================
+
+2022-09-20 10:42:01.453478: E external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_dnn.cc:377] Loaded runtime CuDNN library: 8.1.1 but source was compiled with: 8.2.4. CuDNN library needs to have matching major version and equal or higher minor version. If using a binary install, upgrade your CuDNN library. If building from sources, make sure the library loaded at runtime is compatible with the version specified during compile configuration.
+2022-09-20 10:42:01.456672: E external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_dnn.cc:377] Loaded runtime CuDNN library: 8.1.1 but source was compiled with: 8.2.4. CuDNN library needs to have matching major version and equal or higher minor version. If using a binary install, upgrade your CuDNN library. If building from sources, make sure the library loaded at runtime is compatible with the version specified during compile configuration.
+2022-09-20 10:42:01.459094: E external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_dnn.cc:377] Loaded runtime CuDNN library: 8.1.1 but source was compiled with: 8.2.4. CuDNN library needs to have matching major version and equal or higher minor version. If using a binary install, upgrade your CuDNN library. If building from sources, make sure the library loaded at runtime is compatible with the version specified during compile configuration.
+....
+*** jaxlib.xla_extension.XlaRuntimeError: UNKNOWN: Failed to determine best cudnn convolution algorithm for:
+%cudnn-conv = (f32[1,16,16,32]{3,2,1,0}, u8[0]{0}) custom-call(f32[1,64,64,6]{3,2,1,0} %Arg_0.1, f32[8,8,6,32]{2,1,0,3} %copy), window={size=8x8 stride=4x4 pad=2_2x2_2}, dim_labels=b01f_01io->b01f, custom_call_target="__cudnn$convForward", metadata={op_name="jit(conv_general_dilated)/jit(main)/conv_general_dilated[window_strides=(4, 4) padding=((2, 2), (2, 2)) lhs_dilation=(1, 1) rhs_dilation=(1, 1) dimension_numbers=ConvDimensionNumbers(lhs_spec=(0, 3, 1, 2), rhs_spec=(3, 2, 0, 1), out_spec=(0, 3, 1, 2)) feature_group_count=1 batch_group_count=1 lhs_shape=(1, 64, 64, 6) rhs_shape=(8, 8, 6, 32) precision=None preferred_element_type=None]" source_file="/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/python3.9/site-packages/haiku/_src/conv.py" source_line=205}, backend_config="{\"conv_result_scale\":1,\"activation_mode\":\"0\",\"side_input_scale\":0}"
+
+
+AND
+
+2022-09-21 12:07:27.004027: E external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_blas.cc:218] failed to create cublas handle: cublas error
+2022-09-21 12:07:27.004071: E external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_blas.cc:220] Failure to initialize cublas may be due to OOM (cublas needs some free memory when you initialize it, and your deep-learning framework may have preallocated more than its fair share), or may be because this binary was not built with support for the GPU in your machine.
+2022-09-21 12:07:27.055006: W external/org_tensorflow/tensorflow/compiler/xla/service/gpu/gpu_conv_algorithm_picker.cc:727] None of the algorithms provided by cuDNN heuristics worked; trying fallback algorithms. Conv: (f32[1,16,16,32]{2,1,3,0}, u8[0]{0}) custom-call(f32[1,64,64,6]{2,1,3,0}, f32[8,8,6,32]{1,0,2,3}), window={size=8x8 stride=4x4 pad=2_2x2_2}, dim_labels=b01f_01io->b01f, custom_call_target="__cudnn$convForward", backend_config="{\"conv_result_scale\":1,\"activation_mode\":\"0\",\"side_input_scale\":0}"
+Node ThreadWorker(thread=<Thread(learner, stopped daemon 140577552070400)>, future=<Future at 0x7fddde529c40 state=finished raised XlaRuntimeError>) crashed:
+Traceback (most recent call last):
+…
+Profiling failure on cuDNN engine 0: UNKNOWN: CUDNN_STATUS_EXECUTION_FAILED
+in external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_dnn.cc(4023): 'cudnnConvolutionForward( cudnn.handle(), alpha, input_nd_.handle(), input_data.opaque(), filter_.handle(), filter_data.opaque(), conv_.handle(), ToConvForwardAlgo(algo), scratch_memory.opaque(), scratch_memory.size(), beta, output_nd_.handle(), output_data.opaque())'
+ Profiling failure on cuDNN engine 2#TC: UNKNOWN: CUDNN_STATUS_EXECUTION_FAILED
+in external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_dnn.cc(4023): 'cudnnConvolutionForward( cudnn.handle(), alpha, input_nd_.handle(), input_data.opaque(), filter_.handle(), filter_data.opaque(), conv_.handle(), ToConvForwardAlgo(algo), scratch_memory.opaque(), scratch_memory.size(), beta, output_nd_.handle(), output_data.opaque())'
+ Profiling failure on cuDNN engine 2: UNKNOWN: CUDNN_STATUS_EXECUTION_FAILED
+in external/org_tensorflow/tensorflow/stream_executor/cuda/cuda_dnn.cc(4023): 'cudnnConvolutionForward( cudnn.handle(), alpha, input_nd_.handle(), input_data.opaque(), filter_.handle(), filter_data.opaque(), conv_.handle(), ToConvForwardAlgo(algo), scratch_memory.opaque(), scratch_memory.size(), beta, output_nd_.handle(), output_data.opaque())'
+To ignore this failure and try to use a fallback algorithm (which may have suboptimal performance), use XLA_FLAGS=--xla_gpu_strict_conv_algorithm_picker=false. Please also file a bug for the root cause of failing autotuning.
+
+Okay I think the cudnn issues are finally fixed! I posted in the help channel and Kaylee helped me figure it out. Basically I got it working by reinstalling jax using pip install "jax[cuda11_cudnn805]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+and then also running export XLA_PYTHON_CLIENT_MEM_FRACTION=.7. Neither of these on their own did the trick, but it seems to work when I do both of them. Weirdly, when I look at the gpu usage using watch nvidia-smi, setting XLA_PYTHON_CLIENT_MEM_FRACTION=.7 it doesn’t limit the gpu usage to 70%. It still goes all the way up to 90% percent, but it goes up to 90% a little bit more slowly than if I don’t set XLA_PYTHON_CLIENT_MEM_FRACTION=.7. For some reason this makes it work. Anyway, I’m happy that this finally appears to be solved after spending like two days on this lol. I’ll kick off the image based experiments now
+
+https://github.com/google/jax/discussions/6332#discussioncomment-1279991

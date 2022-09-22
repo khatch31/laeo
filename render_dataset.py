@@ -94,9 +94,30 @@ if __name__ == '__main__':
     render_data(BASEDIR, args.headdir)
 
 """
+pconda
+conda activate contrastive_rl
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+
 python3 -u render_dataset.py \
 --headdir fetch_reach-goals-no-noise/learner/nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy
 
 python3 -u render_dataset.py \
 --headdir fetch_reach-goals-no-noise/learner/nonoise_collect_entropy
+
+
+
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/learner/nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy
+
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/learner/nonoise_collect_entropy
+
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/learner/nonoise_collect
+
+
 """

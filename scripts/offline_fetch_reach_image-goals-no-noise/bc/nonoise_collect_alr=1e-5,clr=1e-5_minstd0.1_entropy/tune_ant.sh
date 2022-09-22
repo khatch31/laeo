@@ -42,6 +42,7 @@ python3 -u lp_contrastive_goals.py \
 --project=contrastive_rl_goals5 \
 --env_name=offline_fetch_reach_image-goals-no-noise \
 --description=nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy--ta \
+--use_gcbc=true \
 --entropy_coefficient=0 \
 --max_number_of_steps=10000 \
 --actor_learning_rate=1e-4 \

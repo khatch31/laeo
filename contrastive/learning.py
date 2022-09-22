@@ -80,6 +80,11 @@ class ContrastiveLearner(acme.Learner):
     self._num_sgd_steps_per_step = config.num_sgd_steps_per_step
     self._obs_dim = config.obs_dim
     self._use_td = config.use_td
+
+    print("\nadaptive_entropy_coefficient:", adaptive_entropy_coefficient)
+    print("self._num_sgd_steps_per_step:", self._num_sgd_steps_per_step)
+    print()
+
     if adaptive_entropy_coefficient:
       # alpha is the temperature parameter that determines the relative
       # importance of the entropy term versus the reward.

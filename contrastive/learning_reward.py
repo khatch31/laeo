@@ -23,7 +23,7 @@ from acme.jax import networks as networks_lib
 from acme.jax import utils
 from acme.utils import counting
 from acme.utils import loggers
-from contrastive import config_goals as contrastive_config
+from contrastive import config_reward as contrastive_config
 from contrastive import networks as contrastive_networks
 import jax
 import jax.numpy as jnp
@@ -34,22 +34,24 @@ from jax.experimental import host_callback as hcb
 from contrastive.default_logger import make_default_logger
 
 
-class TrainingState(NamedTuple):
+class TrainingState2(NamedTuple):
   """Contains training state for the learner."""
   policy_optimizer_state: optax.OptState
   q_optimizer_state: optax.OptState
+  r_optimizer_state: optax.OptState
   policy_params: networks_lib.Params
   q_params: networks_lib.Params
+  r_params: networks_lib.Params
   target_q_params: networks_lib.Params
   key: networks_lib.PRNGKey
   alpha_optimizer_state: Optional[optax.OptState] = None
   alpha_params: Optional[networks_lib.Params] = None
 
 
-class ContrastiveLearnerGoals(acme.Learner):
+class ContrastiveLearnerReward(acme.Learner):
   """Contrastive RL learner."""
 
-  _state: TrainingState
+  _state: TrainingState2
 
   def __init__(
       self,
@@ -57,6 +59,7 @@ class ContrastiveLearnerGoals(acme.Learner):
       rng,
       policy_optimizer,
       q_optimizer,
+      r_optimizer,
       iterator,
       counter,
       logger,
@@ -118,6 +121,7 @@ class ContrastiveLearnerGoals(acme.Learner):
       alpha_loss = alpha * jax.lax.stop_gradient(
           -log_prob - config.target_entropy)
       return jnp.mean(alpha_loss)
+
 
     def critic_loss(q_params,
                     policy_params,
@@ -236,6 +240,51 @@ class ContrastiveLearnerGoals(acme.Learner):
 
       return loss, metrics
 
+    def reward_loss(r_params,
+                    transitions,
+                    key,
+                    expert_goals):
+
+        # obs = transitions.observation
+        # hcb.id_print(obs[0], what="\n\nobs")
+        #
+        # reward = transitions.reward
+        # hcb.id_print(reward[0], what="\n\nreward")
+        #
+        #
+        # logits = networks.r_network.apply(r_params, transitions.observation, transitions.action)
+
+        ######
+        batch_size = transitions.observation.shape[0]
+        # Note: We might be able to speed up the computation for some of the
+        # baselines to making a single network that returns all the values. This
+        # avoids computing some of the underlying representations multiple times.
+
+        I = jnp.eye(batch_size)  # pylint: disable=invalid-name
+        logits = networks.r_network.apply(r_params, transitions.observation, transitions.action)
+        # logits = networks.q_network.apply(r_params, transitions.observation, transitions.action)
+        hcb.id_print(logits, what="\n\nlogits")
+
+        def loss_fn(_logits):
+            return optax.sigmoid_binary_cross_entropy(logits=_logits, labels=I)
+
+        loss = loss_fn(logits)
+
+        loss = jnp.mean(loss)
+        correct = (jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1))
+        logits_pos = jnp.sum(logits * I) / jnp.sum(I)
+        logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
+        logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+        metrics = {
+            'binary_accuracy': jnp.mean((logits > 0) == I),
+            'categorical_accuracy': jnp.mean(correct),
+            'logits_pos': logits_pos,
+            'logits_neg': logits_neg,
+            'logsumexp': logsumexp.mean(),
+        }
+
+        return loss, metrics
+
     def actor_loss(policy_params,
                    q_params,
                    alpha,
@@ -244,7 +293,6 @@ class ContrastiveLearnerGoals(acme.Learner):
                    expert_goals,
                    ):
       obs = transitions.observation
-      # hcb.id_print(obs.shape, what="\n\nobs.shape")
       # hcb.id_print(obs[0], what="\n\nobs")
       if config.use_gcbc: # Just does behavioral cloning here?
         state = obs[:, :config.obs_dim]
@@ -335,62 +383,86 @@ class ContrastiveLearnerGoals(acme.Learner):
     alpha_grad = jax.value_and_grad(alpha_loss)
     critic_grad = jax.value_and_grad(critic_loss, has_aux=True)
     actor_grad = jax.value_and_grad(actor_loss)
+    reward_grad = jax.value_and_grad(reward_loss)
 
     def update_step(
         state,
         transitions,
     ):
 
-      key, key_alpha, key_critic, key_actor = jax.random.split(state.key, 4)
-      if adaptive_entropy_coefficient:
-        alpha_loss, alpha_grads = alpha_grad(state.alpha_params,
-                                             state.policy_params, transitions,
-                                             key_alpha)
-        alpha = jnp.exp(state.alpha_params)
-      else:
-        alpha = config.entropy_coefficient
+      key, key_alpha, key_critic, key_actor, key_reward = jax.random.split(state.key, 5)
+      # if adaptive_entropy_coefficient:
+      #   alpha_loss, alpha_grads = alpha_grad(state.alpha_params,
+      #                                        state.policy_params, transitions,
+      #                                        key_alpha)
+      #   alpha = jnp.exp(state.alpha_params)
+      # else:
+      #   alpha = config.entropy_coefficient
 
-      if not config.use_gcbc:
-        (critic_loss, critic_metrics), critic_grads = critic_grad(
-            state.q_params, state.policy_params, state.target_q_params,
-            transitions, key_critic)
+      # if not config.use_gcbc:
+      #   (critic_loss, critic_metrics), critic_grads = critic_grad(
+      #       state.q_params, state.policy_params, state.target_q_params,
+      #       transitions, key_critic)
 
-      actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
-                                           alpha, transitions, key_actor, expert_goals)
+      # actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
+      #                                      alpha, transitions, key_actor, expert_goals)
+      #
+      # # Apply policy gradients
+      # actor_update, policy_optimizer_state = policy_optimizer.update(
+      #     actor_grads, state.policy_optimizer_state)
+      # policy_params = optax.apply_updates(state.policy_params, actor_update)
 
-      # Apply policy gradients
-      actor_update, policy_optimizer_state = policy_optimizer.update(
-          actor_grads, state.policy_optimizer_state)
-      policy_params = optax.apply_updates(state.policy_params, actor_update)
 
-      # Apply critic gradients
-      if config.use_gcbc:
-        metrics = {}
-        critic_loss = 0.0
-        q_params = state.q_params
-        q_optimizer_state = state.q_optimizer_state
-        new_target_q_params = state.target_q_params
-      else:
-        critic_update, q_optimizer_state = q_optimizer.update(
-            critic_grads, state.q_optimizer_state)
+      reward_loss, reward_grads = reward_grad(state.r_params, transitions, key_reward, expert_goals)
 
-        q_params = optax.apply_updates(state.q_params, critic_update)
+      # Apply reward gradients
+      reward_update, r_optimizer_state = r_optimizer.update(
+          reward_grads, state.r_optimizer_state)
+      r_params = optax.apply_updates(state.r_params, reward_update)
 
-        new_target_q_params = jax.tree_map(
-            lambda x, y: x * (1 - config.tau) + y * config.tau,
-            state.target_q_params, q_params)
-        metrics = critic_metrics
+      # # Apply critic gradients
+      # if config.use_gcbc:
+      #   metrics = {}
+      #   critic_loss = 0.0
+      #   q_params = state.q_params
+      #   q_optimizer_state = state.q_optimizer_state
+      #   new_target_q_params = state.target_q_params
+      # else:
+      #   critic_update, q_optimizer_state = q_optimizer.update(
+      #       critic_grads, state.q_optimizer_state)
+      #
+      #   q_params = optax.apply_updates(state.q_params, critic_update)
+      #
+      #   new_target_q_params = jax.tree_map(
+      #       lambda x, y: x * (1 - config.tau) + y * config.tau,
+      #       state.target_q_params, q_params)
+      #   metrics = critic_metrics
+
+
+
+      metrics = {}
+      critic_loss = 0.0
+      q_params = state.q_params
+      q_optimizer_state = state.q_optimizer_state
+      new_target_q_params = state.target_q_params
+
+      actor_loss = 0.0
+      policy_params = state.policy_params
+      policy_optimizer_state = state.policy_optimizer_state
 
       metrics.update({
           'critic_loss': critic_loss,
           'actor_loss': actor_loss,
+          'reward_loss': reward_loss,
       })
 
-      new_state = TrainingState(
+      new_state = TrainingState2(
           policy_optimizer_state=policy_optimizer_state,
           q_optimizer_state=q_optimizer_state,
+          r_optimizer_state=r_optimizer_state,
           policy_params=policy_params,
           q_params=q_params,
+          r_params=r_params,
           target_q_params=new_target_q_params,
           key=key,
       )
@@ -430,7 +502,7 @@ class ContrastiveLearnerGoals(acme.Learner):
 
     def make_initial_state(key):
       """Initialises the training state (parameters and optimiser state)."""
-      key_policy, key_q, key = jax.random.split(key, 3)
+      key_policy, key_q, key_r, key = jax.random.split(key, 4)
 
       policy_params = networks.policy_network.init(key_policy)
       policy_optimizer_state = policy_optimizer.init(policy_params)
@@ -438,11 +510,16 @@ class ContrastiveLearnerGoals(acme.Learner):
       q_params = networks.q_network.init(key_q)
       q_optimizer_state = q_optimizer.init(q_params)
 
-      state = TrainingState(
+      r_params = networks.r_network.init(key_r)
+      r_optimizer_state = r_optimizer.init(r_params)
+
+      state = TrainingState2(
           policy_optimizer_state=policy_optimizer_state,
           q_optimizer_state=q_optimizer_state,
+          r_optimizer_state=r_optimizer_state,
           policy_params=policy_params,
           q_params=q_params,
+          r_params=r_params,
           target_q_params=q_params,
           key=key)
 

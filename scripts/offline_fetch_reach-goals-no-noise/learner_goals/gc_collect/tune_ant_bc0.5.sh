@@ -46,7 +46,7 @@ python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals5 \
 --env_name=offline_fetch_reach-goals-no-noise \
---description=collect--tune_ant_bc0.5 \
+--description=gc_collect--tune_ant_bc0.5 \
 --entropy_coefficient=0 \
 --max_number_of_steps=10000 \
 --actor_learning_rate=1e-4 \

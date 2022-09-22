@@ -23,7 +23,7 @@ import numpy as onp
 
 
 @dataclasses.dataclass
-class ContrastiveConfigGoals:
+class ContrastiveConfigReward:
   """Configuration options for contrastive RL."""
 
   env_name: str = ''
@@ -34,6 +34,7 @@ class ContrastiveConfigGoals:
   batch_size: int = 512 # 256
   actor_learning_rate: float = 3e-4
   learning_rate: float = 3e-4
+  reward_learning_rate: float = 3e-4
   reward_scale: float = 1
   discount: float = 0.99
   n_step: int = 1
@@ -68,7 +69,7 @@ class ContrastiveConfigGoals:
   use_gcbc: bool = False
   use_image_obs: bool = False
   random_goals: float = 0.5
-  jit: bool = True
+  jit: bool = False # 
   add_mc_to_td: bool = False
   resample_neg_actions: bool = False
   bc_coef: float = 0.0

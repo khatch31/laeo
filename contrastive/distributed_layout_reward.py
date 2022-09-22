@@ -136,7 +136,7 @@ class CheckpointingConfig:
   # add_uid: bool = True
 
 
-class DistributedLayoutGoals:
+class DistributedLayoutReward:
   """Program definition for a distributed agent based on a builder."""
 
   def __init__(
@@ -249,13 +249,13 @@ class DistributedLayoutGoals:
 
         episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
-        episode_files = sorted(episode_files, key=get_ep_no)
-        # episode_files = sorted(episode_files, key=get_ep_no, reverse=True)
-        # j = 0
+        # episode_files = sorted(episode_files, key=get_ep_no)
+        episode_files = sorted(episode_files, key=get_ep_no, reverse=True)
+        j = 0
         for episode_file in tqdm.tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
-            # j += 1
-            # if j > 500:
-            #     break
+            j += 1
+            if j > 500:
+                break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
                 episode = {k: episode[k] for k in episode.keys()}
@@ -419,19 +419,19 @@ class DistributedLayoutGoals:
       return self._builder.make_actor(
           random_key, policy_network, variable_source=variable_source)
 
-    with program.group('evaluator'):
-      for evaluator in self._evaluator_factories:
-        evaluator_key, key = jax.random.split(key)
-        program.add_node(
-            lp.CourierNode(evaluator, evaluator_key, learner, counter,
-                           make_actor))
+    # with program.group('evaluator'):
+    #   for evaluator in self._evaluator_factories:
+    #     evaluator_key, key = jax.random.split(key)
+    #     program.add_node(
+    #         lp.CourierNode(evaluator, evaluator_key, learner, counter,
+    #                        make_actor))
 
-    with program.group('actor'):
-      for actor_id in range(self._num_actors):
-        actor_key, key = jax.random.split(key)
-        program.add_node(
-            lp.CourierNode(self.actor, actor_key, replay, learner, counter,
-                           actor_id))
+    # with program.group('actor'):
+    #   for actor_id in range(self._num_actors):
+    #     actor_key, key = jax.random.split(key)
+    #     program.add_node(
+    #         lp.CourierNode(self.actor, actor_key, replay, learner, counter,
+    #                        actor_id))
 
     return program
 

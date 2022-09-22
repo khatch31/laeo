@@ -106,18 +106,20 @@ def get_program(params):
   seed = params.pop('seed')
 
   if params.get('use_image_obs', False) and not params.get('local', False):
-    print('WARNING: overwriting parameters for image-based tasks.')
-    params['num_sgd_steps_per_step'] = 16
+  #   print('WARNING: overwriting parameters for image-based tasks.')
+    # params['num_sgd_steps_per_step'] = 16
     params['prefetch_size'] = 16
-    params['num_actors'] = 10
+    # params['num_actors'] = 10
 
-  if env_name.startswith('offline_ant') or env_name.startswith('offline_fetch'):
+  if env_name.startswith('offline'):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
     assert not FLAGS.save_data
 
   config = contrastive.ContrastiveConfigGoals(**params)
+
+  print("config.num_sgd_steps_per_step:", config.num_sgd_steps_per_step)
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
@@ -307,6 +309,8 @@ def main(_):
   # Set terminal='tmux' if you want different components in different windows.
 
   lp.launch(program, terminal='current_terminal')
+  # local_resources = dict(actor=lp.PythonProcess(env=dict(XLA_PYTHON_CLIENT_MEM_FRACTION='0.1')))
+  # lp.launch(program, terminal='current_terminal', local_resources=local_resources)
 
 if __name__ == '__main__':
   app.run(main)

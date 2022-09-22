@@ -45,7 +45,7 @@ ls -l /usr/local
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals5 \
---env_name=offline_fetch_reach-goals-no-noise \
+--env_name=offline_fetch_push-goals-no-noise \
 --description=gc_collect--tune_ant \
 --use_gcbc=true \
 --entropy_coefficient=0 \
@@ -62,6 +62,6 @@ python3 -u lp_contrastive_goals.py \
 --twin_q=true \
 --bc_coef=0.05 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach/learner/collect/seed_0/recorded_data
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_push/learner/collect/seed_0/recorded_data
 
 # --project=contrastive_rl_goals5 \
