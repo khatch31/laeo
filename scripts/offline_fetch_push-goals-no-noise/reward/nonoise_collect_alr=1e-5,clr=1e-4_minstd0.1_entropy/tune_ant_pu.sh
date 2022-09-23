@@ -44,7 +44,7 @@ ls -l /usr/local
 
 python3 -u lp_contrastive_reward.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals5 \
+--project=contrastive_rl_goals6 \
 --env_name=offline_fetch_push-goals-no-noise \
 --description=nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy--tune_ant_pu \
 --reward_loss_type=pu \

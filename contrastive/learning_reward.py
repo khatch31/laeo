@@ -259,13 +259,13 @@ class ContrastiveLearnerReward(acme.Learner):
 
       idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
       obs_and_goals = jnp.concatenate([s, expert_goals[idxs]], axis=0)
-      logits = networks.r_network.apply(r_params, obs_and_goals)
+      logits = networks.r_network.apply(r_params, obs_and_goals)[:, 0]
       # (49, 49) = (batch_size, batch_size)
 
       labels_neg = jnp.zeros(batch_size)
       labels_pos = jnp.ones(batch_size)
       labels = jnp.concatenate([labels_neg, labels_pos], axis=0)
-      labels = jnp.expand_dims(labels, axis=-1)
+      # labels = jnp.expand_dims(labels, axis=-1)
 
       # labels_neg = jnp.stack([jnp.ones(batch_size), jnp.zeros(batch_size)], axis=1)
       # labels_pos = jnp.stack([jnp.zeros(batch_size), jnp.ones(batch_size)], axis=1)
@@ -294,18 +294,24 @@ class ContrastiveLearnerReward(acme.Learner):
       # }
 
       loss = jnp.mean(loss)
-      assert len(logits.shape) == 2
+      assert len(logits.shape) == 1
       # correct = jnp.squeeze(logits) == jnp.squeeze(labels)
       logits_neg = logits[:batch_size].mean()
       logits_pos = logits[batch_size:].mean()
-      logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+      # logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+
+      sigmoid_neg = jax.nn.sigmoid(logits[:batch_size]).mean()
+      sigmoid_pos = jax.nn.sigmoid(logits[batch_size:]).mean()
 
       metrics = {
           'binary_accuracy': jnp.mean((logits > 0) == labels),
+          'sigmoid_binary_accuracy': jnp.mean((jax.nn.sigmoid(logits) > 0.5) == labels),
           # 'categorical_accuracy': jnp.mean(correct),
           'logits_pos': logits_pos,
           'logits_neg': logits_neg,
-          'logsumexp': logsumexp.mean(),
+          'sigmoid_pos': sigmoid_pos,
+          'sigmoid_neg': sigmoid_neg,
+          # 'logsumexp': logsumexp.mean(),
       }
 
       return loss, metrics

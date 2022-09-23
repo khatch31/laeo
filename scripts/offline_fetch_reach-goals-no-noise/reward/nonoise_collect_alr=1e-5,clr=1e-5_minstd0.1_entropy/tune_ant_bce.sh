@@ -44,7 +44,7 @@ ls -l /usr/local
 
 python3 -u lp_contrastive_reward.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals5 \
+--project=contrastive_rl_goals6 \
 --env_name=offline_fetch_reach-goals-no-noise \
 --description=nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy--tune_ant_bce \
 --reward_loss_type=bce \
@@ -63,4 +63,6 @@ python3 -u lp_contrastive_reward.py \
 --bc_coef=0.05 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
 --data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy/seed_0/recorded_data
-# --project=contrastive_rl_goals5 \
+
+
+# --project=contrastive_rl_goals6 \

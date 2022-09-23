@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --job-name="nonoise_collect_alr=1e-5,clr=1e-5_minstd0.1_entropy--tabce"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=64G
+#SBATCH --mem=90G
 #SBATCH --exclude=iris4,iris5,iris6
 
 which python3

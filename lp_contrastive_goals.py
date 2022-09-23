@@ -172,17 +172,18 @@ def get_program(params):
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
-  if config.use_td:
-      assert FLAGS.reward_checkpoint_path is not None
-
-  if FLAGS.reward_checkpoint_path is not None:
-      assert config.use_td
-      reader = tf.train.load_checkpoint(FLAGS.reward_checkpoint_path)
-      params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
-      reward_checkpoint_state = dill.loads(params)
-  else:
-      assert not config.use_td
-      reward_checkpoint_state = None
+  # if config.use_td:
+  #     assert FLAGS.reward_checkpoint_path is not None
+  #
+  # if FLAGS.reward_checkpoint_path is not None:
+  #     assert config.use_td
+  #     reader = tf.train.load_checkpoint(FLAGS.reward_checkpoint_path)
+  #     params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
+  #     reward_checkpoint_state = dill.loads(params)
+  # else:
+  #     assert not config.use_td
+  #     reward_checkpoint_state = None
+  reward_checkpoint_state = None
 
   agent = contrastive.DistributedContrastiveGoals(
       seed=seed,
@@ -260,7 +261,6 @@ def main(_):
   params["use_gcbc"] = FLAGS.use_gcbc
 
   params["use_td"] = FLAGS.use_td
-  # params["reward_checkpoint_path"] = FLAGS.reward_checkpoint_path
 
   if 'ant_' in env_name:
     params['end_index'] = 2

@@ -147,7 +147,7 @@ def make_networks(
       out = _critic_fn_td_single(obs, action)
       if twin_q:
           out2 = _critic_fn_td_single(obs, action)
-          out = jnp.stack([out, out2], axis=-1)
+          out = jnp.concatenate([out, out2], axis=-1)
       return out
 
   def _reward_fn(obs):

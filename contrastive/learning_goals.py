@@ -139,29 +139,31 @@ class ContrastiveLearnerGoals(acme.Learner):
           next_dist_params = networks.policy_network.apply(policy_params, transitions.next_observation)
           next_action = networks.sample(next_dist_params, key)
 
-          next_q = networks.q_network.apply(target_q_params, transitions.next_observation, next_action)  # (batch_size, 1, 2) This outputs logits.
-
+          next_q = networks.q_network.apply(target_q_params, transitions.next_observation, next_action)  # (batch_size, 2) This outputs logits.
           # next_q = jax.nn.sigmoid(next_q) ???
-          next_q = jnp.min(next_q, axis=-1) # (batch_size, 1)
+          next_q = jnp.min(next_q, axis=-1) # (batch_size,)
           next_q = jax.lax.stop_gradient(next_q)
 
-          target_q = transitions.reward[:, None] + config.discount * next_q # (batch_size, 1)
+          target_q = transitions.reward + config.discount * next_q # (batch_size,)
           # target_q = batch['rewards'] + discount * batch['masks'] * next_q
 
-          logits = networks.q_network.apply(q_params, transitions.observation, transitions.action) # (batch_size, 1, 2)
+          logits = networks.q_network.apply(q_params, transitions.observation, transitions.action) # (batch_size, 2)
           # Make sure to use the twin Q trick.
-          assert len(logits.shape) == 3
-          loss = ((logits - target_q[..., None])**2) # (batch_size, 1, 2)
+          assert len(logits.shape) == 2
+          # loss = ((logits - target_q)**2) # (batch_size, 1, 2)
+          loss1 = ((logits[:, 0] - target_q)**2) # (batch_size,)
+          loss2 = ((logits[:, 1] - target_q)**2) # (batch_size,)
+          loss = loss1 + loss2 # (batch_size,)
 
           loss = jnp.mean(loss)
-          logsumexp = jax.nn.logsumexp(logits[:, :, 0], axis=1)**2 # (batch_size)
+          # logsumexp = jax.nn.logsumexp(logits[:, 0], axis=1)**2 # (batch_size)
           metrics = {
               # 'binary_accuracy': jnp.mean((logits > 0) == I),
               # 'categorical_accuracy': jnp.mean(correct),
               'logits': logits.mean(),
               'logits1':logits[..., 0].mean(),
               'logits2':logits[..., 1].mean(),
-              'logsumexp': logsumexp.mean(),
+              # 'logsumexp': logsumexp.mean(),
           }
 
       else:
@@ -203,6 +205,7 @@ class ContrastiveLearnerGoals(acme.Learner):
           }
 
       return loss, metrics
+
 
     def actor_loss(policy_params,
                    q_params,

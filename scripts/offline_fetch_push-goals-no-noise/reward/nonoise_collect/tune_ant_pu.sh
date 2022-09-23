@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=iris
+#SBATCH --partition=iris-hi
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="nonoise_collect--tune_ant_pu"
@@ -44,7 +44,7 @@ ls -l /usr/local
 
 python3 -u lp_contrastive_reward.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals5 \
+--project=contrastive_rl_goals6 \
 --env_name=offline_fetch_push-goals-no-noise \
 --description=nonoise_collect--tune_ant_pu \
 --reward_loss_type=pu \
@@ -66,4 +66,4 @@ python3 -u lp_contrastive_reward.py \
 
 
 
-# --project=contrastive_rl_goals5 \
+# --project=contrastive_rl_goals6 \

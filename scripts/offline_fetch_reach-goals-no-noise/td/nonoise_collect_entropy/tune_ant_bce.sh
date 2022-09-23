@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
-#SBATCH --job-name="nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy--tune_ant_bce"
+#SBATCH --job-name="nonoise_collect_entropy--tune_ant"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 
@@ -42,16 +42,16 @@ ls -l /usr/local
 # export XLA_PYTHON_CLIENT_PREALLOCATE="false"
 # export XLA_PYTHON_CLIENT_MEM_FRACTION=".1"
 
-python3 -u lp_contrastive_reward.py \
+python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals6 \
---env_name=offline_fetch_push-goals-no-noise \
---description=nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy--tune_ant_bce \
---reward_loss_type=bce \
+--project=contrastive_rl_goals5 \
+--env_name=offline_fetch_reach-goals-no-noise \
+--description=nonoise_collect_entropy--tune_ant_bce \
+--use_td=true \
 --entropy_coefficient=0 \
 --max_number_of_steps=10000 \
---actor_learning_rate=3e-4 \
---learning_rate=3e-4 \
+--actor_learning_rate=1e-4 \
+--learning_rate=1e-4 \
 --repr_dim=256 \
 --hidden_layer_sizes=1024 \
 --hidden_layer_sizes=1024 \
@@ -62,4 +62,7 @@ python3 -u lp_contrastive_reward.py \
 --twin_q=true \
 --bc_coef=0.05 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_push-goals-no-noise/learner/nonoise_collect_alr=1e-5,clr=1e-4_minstd0.1_entropy/seed_0/recorded_data
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data \
+--reward_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals5/offline_fetch_reach-goals-no-noise/reward/nonoise_collect_entropy--tune_ant_bce/seed_0/checkpoints/learner
+
+# --project=contrastive_rl_goals5 \

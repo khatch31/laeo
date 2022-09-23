@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="nonoise_collect_entropy--tune_ant_bc0.5"

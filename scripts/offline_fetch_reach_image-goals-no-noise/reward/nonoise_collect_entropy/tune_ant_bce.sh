@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="nonoise_collect_entropy--tabce"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=64G
+#SBATCH --mem=90G
 #SBATCH --exclude=iris4,iris5,iris6
 
 which python3
@@ -58,3 +58,5 @@ python3 -u lp_contrastive_reward.py \
 --bc_coef=0.05 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
 --data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data
+
+# --project=contrastive_rl_goals5 \
