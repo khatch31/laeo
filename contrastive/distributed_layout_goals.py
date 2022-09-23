@@ -209,6 +209,14 @@ class DistributedLayoutGoals:
   ):
     """The Learning part of the agent."""
 
+    dummy_seed = 1
+    environment_spec = (
+        self._environment_spec or
+        specs.make_environment_spec(self._environment_factory(dummy_seed)))
+
+    # Creates the networks to optimize (online) and target networks.
+    networks = self._network_factory(environment_spec)
+
     if self._builder._config.env_name.startswith('offline_ant'):  # pytype: disable=attribute-error, pylint: disable=protected-access
       adder = self._builder.make_adder(replay, force_no_save=True)
       env = self._environment_factory(0)
@@ -238,6 +246,11 @@ class DistributedLayoutGoals:
         if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
           break
 
+
+    if self._builder._config.use_td:
+        assert self._reward_checkpoint_state is not None
+        dataset_r_preds = []
+        sigmoid_dataset_r_preds = []
 
     use_image_obs = self._builder._config.use_image_obs
     if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
@@ -280,9 +293,14 @@ class DistributedLayoutGoals:
                 else:
                     obs = episode['observation'][t]
 
+                if self._builder._config.use_td:
+                    r_pred = networks.r_network.apply(self._reward_checkpoint_state.r_params, episode["observation"][t, :self._obs_dim])
+                    dataset_r_preds.append(r_pred.item())
+                    sigmoid_dataset_r_preds.append(jax.nn.sigmoid(r_pred).item())
+
                 ts = dm_env.TimeStep(
                     step_type=episode["step_type"][t],
-                    reward=episode['reward'][t],
+                    reward=episode['reward'][t] if not self._builder._config.use_td else jax.nn.sigmoid(r_pred).item(),
                     discount=episode["discount"][t],
                     observation=obs,
                 )
@@ -301,16 +319,29 @@ class DistributedLayoutGoals:
             expert_goals = [expert_goals_list[i] for i in idxs]
             expert_goals = np.stack(expert_goals)
 
+        if self._builder._config.use_td:
+            expert_r_preds = [networks.r_network.apply(self._reward_checkpoint_state.r_params, expert_goals[i]).item() for i in range(expert_goals.shape[0])]
+            exp_dataset_r_preds = [np.exp(r_pred) for r_pred in dataset_r_preds]
+            exp_expert_r_preds = [np.exp(r_pred) for r_pred in expert_r_preds]
+            sigmoid_expert_r_preds = [jax.nn.sigmoid(r_pred) for r_pred in expert_r_preds]
+
+            print(f"\n[dataset_r_preds] mean: {np.mean(dataset_r_preds):.3f}, std: {np.std(dataset_r_preds):.3f}, max: {np.max(dataset_r_preds):.3f}, min: {np.min(dataset_r_preds):.3f},")
+            print(f"[sigmoid_dataset_r_preds] mean: {np.mean(sigmoid_dataset_r_preds):.3f}, std: {np.std(sigmoid_dataset_r_preds):.3f}, max: {np.max(sigmoid_dataset_r_preds):.3f}, min: {np.min(sigmoid_dataset_r_preds):.3f},")
+            print(f"[exp_dataset_r_preds] mean: {np.mean(exp_dataset_r_preds):.3f}, std: {np.std(exp_dataset_r_preds):.3f}, max: {np.max(exp_dataset_r_preds):.3f}, min: {np.min(exp_dataset_r_preds):.3f},")
+
+            print(f"[\nexpert_r_preds] mean: {np.mean(expert_r_preds):.3f}, std: {np.std(expert_r_preds):.3f}, max: {np.max(expert_r_preds):.3f}, min: {np.min(expert_r_preds):.3f},")
+            print(f"[sigmoid_expert_r_preds] mean: {np.mean(sigmoid_expert_r_preds):.3f}, std: {np.std(sigmoid_expert_r_preds):.3f}, max: {np.max(sigmoid_expert_r_preds):.3f}, min: {np.min(sigmoid_expert_r_preds):.3f},")
+            print(f"[exp_expert_r_preds] mean: {np.mean(exp_expert_r_preds):.3f}, std: {np.std(exp_expert_r_preds):.3f}, max: {np.max(exp_expert_r_preds):.3f}, min: {np.min(exp_expert_r_preds):.3f},")
 
     iterator = self._builder.make_dataset_iterator(replay)
 
-    dummy_seed = 1
-    environment_spec = (
-        self._environment_spec or
-        specs.make_environment_spec(self._environment_factory(dummy_seed)))
-
-    # Creates the networks to optimize (online) and target networks.
-    networks = self._network_factory(environment_spec)
+    # dummy_seed = 1
+    # environment_spec = (
+    #     self._environment_spec or
+    #     specs.make_environment_spec(self._environment_factory(dummy_seed)))
+    #
+    # # Creates the networks to optimize (online) and target networks.
+    # networks = self._network_factory(environment_spec)
 
     if self._prefetch_size > 1:
       # When working with single GPU we should prefetch to device for

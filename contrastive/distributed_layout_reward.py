@@ -252,7 +252,7 @@ class DistributedLayoutReward:
         episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
         episode_files = sorted(episode_files, key=get_ep_no)
-        # episode_files = sorted(episode_files, key=get_ep_no, reverse=True)
+        # episode_files = sorted(episode_files, key=get_ep_no, reverse=True) # j = 0
 
         all_ep_idxs = np.arange(len(episode_files))
         np.random.shuffle(all_ep_idxs)

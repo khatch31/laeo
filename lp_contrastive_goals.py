@@ -51,6 +51,8 @@ import launchpad as lp
 
 import os
 import shutil
+import tensorflow as tf
+import dill
 
 from contrastive.wandb_logger import WANDBLogger
 
@@ -87,7 +89,8 @@ flags.DEFINE_bool('twin_q', True, 'description.')
 flags.DEFINE_bool('save_sim_state', False, 'description.')
 flags.DEFINE_bool('use_gcbc', False, 'description.')
 
-
+flags.DEFINE_bool('use_td', False, 'description.')
+flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 
 
 @functools.lru_cache()
@@ -139,7 +142,8 @@ def get_program(params):
       repr_norm=config.repr_norm, twin_q=config.twin_q,
       use_image_obs=config.use_image_obs,
       hidden_layer_sizes=config.hidden_layer_sizes,
-      actor_min_std=config.actor_min_std)
+      actor_min_std=config.actor_min_std,
+      use_td=config.use_td)
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
@@ -151,10 +155,12 @@ def get_program(params):
   algo = "learner_goals"
   if FLAGS.use_gcbc:
       algo = "bc"
+  elif FLAGS.use_td:
+      algo = "td"
 
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
 
-  group_name="_".join([params["env_name"], algo if not FLAGS.use_gcbc else "bc", FLAGS.description])
+  group_name="_".join([params["env_name"], algo, FLAGS.description])
   name=f"seed_{seed}"
   wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
                             params,
@@ -165,6 +171,18 @@ def get_program(params):
   if FLAGS.replay_buffer_load_dir is not None:
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
+
+  if config.use_td:
+      assert FLAGS.reward_checkpoint_path is not None
+
+  if FLAGS.reward_checkpoint_path is not None:
+      assert config.use_td
+      reader = tf.train.load_checkpoint(FLAGS.reward_checkpoint_path)
+      params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
+      reward_checkpoint_state = dill.loads(params)
+  else:
+      assert not config.use_td
+      reward_checkpoint_state = None
 
   agent = contrastive.DistributedContrastiveGoals(
       seed=seed,
@@ -180,7 +198,8 @@ def get_program(params):
       save_data=FLAGS.save_data,
       save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),
-      data_load_dir=FLAGS.data_load_dir)
+      data_load_dir=FLAGS.data_load_dir,
+      reward_checkpoint_state=reward_checkpoint_state)
   print("Done with agent init.")
 
   return agent.build()
@@ -239,6 +258,9 @@ def main(_):
   params["twin_q"] = FLAGS.twin_q
 
   params["use_gcbc"] = FLAGS.use_gcbc
+
+  params["use_td"] = FLAGS.use_td
+  # params["reward_checkpoint_path"] = FLAGS.reward_checkpoint_path
 
   if 'ant_' in env_name:
     params['end_index'] = 2

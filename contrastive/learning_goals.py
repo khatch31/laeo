@@ -129,110 +129,78 @@ class ContrastiveLearnerGoals(acme.Learner):
       # baselines to making a single network that returns all the values. This
       # avoids computing some of the underlying representations multiple times.
       if config.use_td:
-        # For TD learning, the diagonal elements are the immediate next state.
-        s, g = jnp.split(transitions.observation, [config.obs_dim], axis=1)
-        next_s, _ = jnp.split(transitions.next_observation, [config.obs_dim],
-                              axis=1)
-        if config.add_mc_to_td:
-          next_fraction = (1 - config.discount) / ((1 - config.discount) + 1)
-          num_next = int(batch_size * next_fraction)
-          new_g = jnp.concatenate([
-              obs_to_goal(next_s[:num_next]),
-              g[num_next:],
-          ], axis=0)
-        else:
-          new_g = obs_to_goal(next_s)
-        obs = jnp.concatenate([s, new_g], axis=1)
-        transitions = transitions._replace(observation=obs)
+          # For TD learning, the diagonal elements are the immediate next state.
+          s, _ = jnp.split(transitions.observation, [config.obs_dim], axis=1)
+          next_s, _ = jnp.split(transitions.next_observation, [config.obs_dim], axis=1)
 
-      I = jnp.eye(batch_size)  # pylint: disable=invalid-name
-      # hcb.id_print(transitions.observation, what="\n\transitions.observation")
-      # hcb.id_print(transitions.observation.shape, what="transitions.observation.shape")
-      logits = networks.q_network.apply(
-          q_params, transitions.observation, transitions.action)
+          # obs = jnp.concatenate([s, new_g], axis=1)
+          # transitions = transitions._replace(observation=obs)
 
+          next_dist_params = networks.policy_network.apply(policy_params, transitions.next_observation)
+          next_action = networks.sample(next_dist_params, key)
 
-      if config.use_td:
-        # Make sure to use the twin Q trick.
-        assert len(logits.shape) == 3
+          next_q = networks.q_network.apply(target_q_params, transitions.next_observation, next_action)  # (batch_size, 1, 2) This outputs logits.
 
-        # We evaluate the next-state Q function using random goals
-        s, g = jnp.split(transitions.observation, [config.obs_dim], axis=1)
-        del s
-        next_s = transitions.next_observation[:, :config.obs_dim]
-        goal_indices = jnp.roll(jnp.arange(batch_size, dtype=jnp.int32), -1)
-        g = g[goal_indices]
-        transitions = transitions._replace(
-            next_observation=jnp.concatenate([next_s, g], axis=1))
-        next_dist_params = networks.policy_network.apply(
-            policy_params, transitions.next_observation)
-        next_action = networks.sample(next_dist_params, key)
-        next_q = networks.q_network.apply(target_q_params,
-                                          transitions.next_observation,
-                                          next_action)  # This outputs logits.
-        next_q = jax.nn.sigmoid(next_q)
-        next_v = jnp.min(next_q, axis=-1)
-        next_v = jax.lax.stop_gradient(next_v)
-        next_v = jnp.diag(next_v)
-        # diag(logits) are predictions for future states.
-        # diag(next_q) are predictions for random states, which correspond to
-        # the predictions logits[range(B), goal_indices].
-        # So, the only thing that's meaningful for next_q is the diagonal. Off
-        # diagonal entries are meaningless and shouldn't be used.
-        w = next_v / (1 - next_v)
-        w_clipping = 20.0
-        w = jnp.clip(w, 0, w_clipping)
-        # (B, B, 2) --> (B, 2), computes diagonal of each twin Q.
-        pos_logits = jax.vmap(jnp.diag, -1, -1)(logits)
-        loss_pos = optax.sigmoid_binary_cross_entropy(
-            logits=pos_logits, labels=1)  # [B, 2]
+          # next_q = jax.nn.sigmoid(next_q) ???
+          next_q = jnp.min(next_q, axis=-1) # (batch_size, 1)
+          next_q = jax.lax.stop_gradient(next_q)
 
-        neg_logits = logits[jnp.arange(batch_size), goal_indices]
-        loss_neg1 = w[:, None] * optax.sigmoid_binary_cross_entropy(
-            logits=neg_logits, labels=1)  # [B, 2]
-        loss_neg2 = optax.sigmoid_binary_cross_entropy(
-            logits=neg_logits, labels=0)  # [B, 2]
+          target_q = transitions.reward[:, None] + config.discount * next_q # (batch_size, 1)
+          # target_q = batch['rewards'] + discount * batch['masks'] * next_q
 
-        if config.add_mc_to_td:
-          loss = ((1 + (1 - config.discount)) * loss_pos
-                  + config.discount * loss_neg1 + 2 * loss_neg2)
-        else:
-          loss = ((1 - config.discount) * loss_pos
-                  + config.discount * loss_neg1 + loss_neg2)
-        # Take the mean here so that we can compute the accuracy.
-        logits = jnp.mean(logits, axis=-1)
+          logits = networks.q_network.apply(q_params, transitions.observation, transitions.action) # (batch_size, 1, 2)
+          # Make sure to use the twin Q trick.
+          assert len(logits.shape) == 3
+          loss = ((logits - target_q[..., None])**2) # (batch_size, 1, 2)
 
-      else:  # For the MC losses.
-        def loss_fn(_logits):  # pylint: disable=invalid-name
-          if config.use_cpc:
-            return (optax.softmax_cross_entropy(logits=_logits, labels=I)
-                    + 0.01 * jax.nn.logsumexp(_logits, axis=1)**2)
-          else:
-            return optax.sigmoid_binary_cross_entropy(logits=_logits, labels=I)
-        if len(logits.shape) == 3:  # twin q
-          # loss.shape = [.., num_q]
-          loss = jax.vmap(loss_fn, in_axes=2, out_axes=-1)(logits)
-          loss = jnp.mean(loss, axis=-1)
-          # Take the mean here so that we can compute the accuracy.
-          logits = jnp.mean(logits, axis=-1)
-        else:
-          loss = loss_fn(logits)
+          loss = jnp.mean(loss)
+          logsumexp = jax.nn.logsumexp(logits[:, :, 0], axis=1)**2 # (batch_size)
+          metrics = {
+              # 'binary_accuracy': jnp.mean((logits > 0) == I),
+              # 'categorical_accuracy': jnp.mean(correct),
+              'logits': logits.mean(),
+              'logits1':logits[..., 0].mean(),
+              'logits2':logits[..., 1].mean(),
+              'logsumexp': logsumexp.mean(),
+          }
 
-      loss = jnp.mean(loss)
-      correct = (jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1))
-      logits_pos = jnp.sum(logits * I) / jnp.sum(I)
-      logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
-      if len(logits.shape) == 3:
-        logsumexp = jax.nn.logsumexp(logits[:, :, 0], axis=1)**2
       else:
-        logsumexp = jax.nn.logsumexp(logits, axis=1)**2
-      metrics = {
-          'binary_accuracy': jnp.mean((logits > 0) == I),
-          'categorical_accuracy': jnp.mean(correct),
-          'logits_pos': logits_pos,
-          'logits_neg': logits_neg,
-          'logsumexp': logsumexp.mean(),
-      }
+          I = jnp.eye(batch_size)  # pylint: disable=invalid-name
+          # hcb.id_print(transitions.observation, what="\n\transitions.observation")
+          # hcb.id_print(transitions.observation.shape, what="transitions.observation.shape")
+          logits = networks.q_network.apply(
+              q_params, transitions.observation, transitions.action)
+
+          def loss_fn(_logits):  # pylint: disable=invalid-name
+            if config.use_cpc:
+              return (optax.softmax_cross_entropy(logits=_logits, labels=I)
+                      + 0.01 * jax.nn.logsumexp(_logits, axis=1)**2)
+            else:
+              return optax.sigmoid_binary_cross_entropy(logits=_logits, labels=I)
+          if len(logits.shape) == 3:  # twin q
+            # loss.shape = [.., num_q]
+            loss = jax.vmap(loss_fn, in_axes=2, out_axes=-1)(logits)
+            loss = jnp.mean(loss, axis=-1)
+            # Take the mean here so that we can compute the accuracy.
+            logits = jnp.mean(logits, axis=-1)
+          else:
+            loss = loss_fn(logits)
+
+          loss = jnp.mean(loss)
+          correct = (jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1))
+          logits_pos = jnp.sum(logits * I) / jnp.sum(I)
+          logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
+          if len(logits.shape) == 3:
+            logsumexp = jax.nn.logsumexp(logits[:, :, 0], axis=1)**2
+          else:
+            logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+          metrics = {
+              'binary_accuracy': jnp.mean((logits > 0) == I),
+              'categorical_accuracy': jnp.mean(correct),
+              'logits_pos': logits_pos,
+              'logits_neg': logits_neg,
+              'logsumexp': logsumexp.mean(),
+          }
 
       return loss, metrics
 

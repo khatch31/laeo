@@ -253,6 +253,8 @@ class ContrastiveLearnerReward(acme.Learner):
                     expert_goals):
       batch_size = transitions.observation.shape[0]
 
+      # Negative = policy, positive = expert goals
+
       s, g = jnp.split(transitions.observation, [config.obs_dim], axis=1)
 
       idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
@@ -265,6 +267,10 @@ class ContrastiveLearnerReward(acme.Learner):
       labels = jnp.concatenate([labels_neg, labels_pos], axis=0)
       labels = jnp.expand_dims(labels, axis=-1)
 
+      # labels_neg = jnp.stack([jnp.ones(batch_size), jnp.zeros(batch_size)], axis=1)
+      # labels_pos = jnp.stack([jnp.zeros(batch_size), jnp.ones(batch_size)], axis=1)
+      # labels = jnp.concatenate([labels_neg, labels_pos], axis=0)
+
       if config.reward_loss_type == "bce":
           loss = optax.sigmoid_binary_cross_entropy(logits=logits, labels=labels)
       elif config.reward_loss_type == "pu":
@@ -272,12 +278,28 @@ class ContrastiveLearnerReward(acme.Learner):
       else:
           raise ValueError(f"Unsupported loss type, config.reward_loss_type: {config.reward_loss_type}")
 
+      # loss = jnp.mean(loss)
+      # assert len(logits.shape) == 2
+      # correct = jnp.argmax(logits, axis=1) == jnp.argmax(labels, axis=1)
+      # logits_neg = logits[:batch_size, 0]
+      # logits_pos = logits[batch_size:, 0]
+      # logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+      #
+      # metrics = {
+      #     'binary_accuracy': jnp.mean((logits > 0) == labels),
+      #     'categorical_accuracy': jnp.mean(correct),
+      #     'logits_pos': logits_pos,
+      #     'logits_neg': logits_neg,
+      #     'logsumexp': logsumexp.mean(),
+      # }
+
       loss = jnp.mean(loss)
       assert len(logits.shape) == 2
       # correct = jnp.squeeze(logits) == jnp.squeeze(labels)
-      logits_neg = logits[:batch_size]
-      logits_pos = logits[batch_size:]
+      logits_neg = logits[:batch_size].mean()
+      logits_pos = logits[batch_size:].mean()
       logsumexp = jax.nn.logsumexp(logits, axis=1)**2
+
       metrics = {
           'binary_accuracy': jnp.mean((logits > 0) == labels),
           # 'categorical_accuracy': jnp.mean(correct),

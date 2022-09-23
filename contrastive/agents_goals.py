@@ -56,6 +56,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
       save_sim_state=False,
       data_save_dir="~/acme/data",
       data_load_dir=None,
+      reward_checkpoint_state=None
   ):
     # Check that the environment-specific parts of the config have been set.
     assert config.max_episode_steps > 0
@@ -67,6 +68,7 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
     self._logdir = logdir
     self._wandblogger = wandblogger
     self._data_load_dir = data_load_dir
+    self._reward_checkpoint_state = reward_checkpoint_state
 
     logger_fn = functools.partial(make_default_logger,
                                   self._logdir,

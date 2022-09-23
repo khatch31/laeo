@@ -61,7 +61,8 @@ def make_networks(
     hidden_layer_sizes = (256, 256),
     actor_min_std = 1e-6,
     twin_q = False,
-    use_image_obs = False):
+    use_image_obs = False,
+    use_td = False):
   """Creates networks used by the agent."""
 
   num_dimensions = np.prod(spec.actions.shape, dtype=int)
@@ -125,10 +126,29 @@ def make_networks(
       outer = jnp.stack([outer, outer2], axis=-1)
     return outer
 
-  # def _reward_fn(obs, action):
-  #   sa_repr, g_repr, hidden = _repr_fn(obs, action)
-  #   outer = _combine_repr(sa_repr, g_repr)
-  #   return outer
+  def _critic_fn_td_single(obs, action):
+    if use_image_obs:
+      state, goal = _unflatten_obs(obs)
+      obs = state
+      obs = TORSO()(obs)
+    else:
+      obs = obs[:, :obs_dim]
+
+    network = hk.Sequential([
+        hk.nets.MLP(
+            list(hidden_layer_sizes) + [1],
+            w_init=hk.initializers.VarianceScaling(1.0, 'fan_in', 'uniform'),
+            activation=jax.nn.relu,
+            activate_final=False),
+    ])
+    return network(jnp.concatenate([obs, action], axis=-1))
+
+  def _critic_fn_td(obs, action):
+      out = _critic_fn_td_single(obs, action)
+      if twin_q:
+          out2 = _critic_fn_td_single(obs, action)
+          out = jnp.stack([out, out2], axis=-1)
+      return out
 
   def _reward_fn(obs):
     if use_image_obs:
@@ -165,7 +185,7 @@ def make_networks(
     return network(obs)
 
   policy = hk.without_apply_rng(hk.transform(_actor_fn))
-  critic = hk.without_apply_rng(hk.transform(_critic_fn))
+  critic = hk.without_apply_rng(hk.transform(_critic_fn_td if use_td else _critic_fn))
   reward = hk.without_apply_rng(hk.transform(_reward_fn))
   repr_fn = hk.without_apply_rng(hk.transform(_repr_fn))
 
