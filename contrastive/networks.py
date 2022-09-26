@@ -169,9 +169,17 @@ def make_networks(
     return network(obs)
 
   def _actor_fn(obs):
+    # if use_image_obs:
+    #   state, goal = _unflatten_obs(obs)
+    #   # assert np.all(goal == 0)
+    #   obs = jnp.concatenate([state, goal], axis=-1)
+    #   obs = TORSO()(obs)
+    # else:
+    #   # assert np.all(obs[:, :obs_dim] == 0)
     if use_image_obs:
       state, goal = _unflatten_obs(obs)
-      obs = jnp.concatenate([state, goal], axis=-1)
+      # obs = jnp.concatenate([state, goal], axis=-1)
+      obs = state
       obs = TORSO()(obs)
     network = hk.Sequential([
         hk.nets.MLP(
@@ -196,8 +204,10 @@ def make_networks(
   dummy_obs = utils.add_batch_dim(dummy_obs)
 
   return ContrastiveNetworks(
+      # policy_network=networks_lib.FeedForwardNetwork(
+      #     lambda key: policy.init(key, dummy_obs), policy.apply),
       policy_network=networks_lib.FeedForwardNetwork(
-          lambda key: policy.init(key, dummy_obs), policy.apply),
+          lambda key: policy.init(key, dummy_obs[:, :obs_dim]), policy.apply),
       q_network=networks_lib.FeedForwardNetwork(
           lambda key: critic.init(key, dummy_obs, dummy_action), critic.apply),
       # r_network=networks_lib.FeedForwardNetwork(

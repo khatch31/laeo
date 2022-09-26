@@ -73,6 +73,7 @@ flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
 flags.DEFINE_integer('batch_size', 256, 'description.')
 flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
 flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('reward_learning_rate', 3e-4, 'description.')
 flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
 flags.DEFINE_integer('repr_dim', 64, 'description.')
 flags.DEFINE_integer('max_replay_size', 1000000, 'description.')
@@ -90,7 +91,15 @@ flags.DEFINE_bool('save_sim_state', False, 'description.')
 flags.DEFINE_bool('use_gcbc', False, 'description.')
 
 flags.DEFINE_bool('use_td', False, 'description.')
+flags.DEFINE_bool('use_sarsa', False, 'description.')
+flags.DEFINE_bool('use_true_reward', False, 'description.')
+flags.DEFINE_bool('sigmoid_q', False, 'description.')
+flags.DEFINE_integer('hardcode_r', None, 'description.')
+
+
 flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
+
+flags.DEFINE_string('reward_loss_type', "bce", 'description.')
 
 
 @functools.lru_cache()
@@ -157,6 +166,12 @@ def get_program(params):
       algo = "bc"
   elif FLAGS.use_td:
       algo = "td"
+      if FLAGS.use_sarsa:
+          algo += "_sarsa"
+      if FLAGS.use_true_reward:
+          algo += "_trueR"
+      if FLAGS.sigmoid_q:
+          algo += "_sigmoid_q"
 
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
 
@@ -249,6 +264,7 @@ def main(_):
   params["batch_size"] = FLAGS.batch_size
   params["actor_learning_rate"] = FLAGS.actor_learning_rate
   params["learning_rate"] = FLAGS.learning_rate
+  params["reward_learning_rate"] = FLAGS.reward_learning_rate
   params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
   params["repr_dim"] = FLAGS.repr_dim
   params["max_replay_size"] = FLAGS.max_replay_size
@@ -261,6 +277,13 @@ def main(_):
   params["use_gcbc"] = FLAGS.use_gcbc
 
   params["use_td"] = FLAGS.use_td
+
+  params["reward_loss_type"] = FLAGS.reward_loss_type
+  params["use_sarsa"] = FLAGS.use_sarsa
+  params["use_true_reward"] = FLAGS.use_true_reward
+  params["sigmoid_q"] = FLAGS.sigmoid_q
+
+
 
   if 'ant_' in env_name:
     params['end_index'] = 2

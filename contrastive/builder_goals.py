@@ -76,6 +76,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       random_key,
       networks,
       dataset,
+      val_dataset,
       replay_client = None,
       counter = None,
       expert_goals=None, ###===### ###---###
@@ -84,12 +85,17 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
     policy_optimizer = optax.adam(
         learning_rate=self._config.actor_learning_rate, eps=1e-7)
     q_optimizer = optax.adam(learning_rate=self._config.learning_rate, eps=1e-7)
+
+    r_optimizer = optax.adam(learning_rate=self._config.reward_learning_rate, eps=1e-7)
+
     return learning_goals.ContrastiveLearnerGoals(
         networks=networks,
         rng=random_key,
         policy_optimizer=policy_optimizer,
         q_optimizer=q_optimizer,
+        r_optimizer=r_optimizer,
         iterator=dataset,
+        val_iterator=val_dataset,
         counter=counter,
         logger=self._logger_fn(),
         obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,

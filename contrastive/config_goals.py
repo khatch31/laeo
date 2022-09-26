@@ -34,6 +34,7 @@ class ContrastiveConfigGoals:
   batch_size: int = 512 # 256
   actor_learning_rate: float = 3e-4
   learning_rate: float = 3e-4
+  reward_learning_rate: float = 3e-4
   reward_scale: float = 1
   discount: float = 0.99
   n_step: int = 1
@@ -83,6 +84,13 @@ class ContrastiveConfigGoals:
   exp_q_action: bool = False
 
   max_checkpoints_to_keep: int = 1
+
+  reward_loss_type: str = "bce"
+  val_size: float = 0.1
+
+  use_sarsa: bool = False
+  use_true_reward: bool = False
+  sigmoid_q: bool = False
 
 
 def target_entropy_from_env_spec(

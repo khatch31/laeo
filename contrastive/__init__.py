@@ -19,6 +19,7 @@ from contrastive.agents import DistributedContrastive
 from contrastive.builder import ContrastiveBuilder
 from contrastive.config import ContrastiveConfig
 from contrastive.config_goals import ContrastiveConfigGoals
+from contrastive.config_goals_td3 import ContrastiveConfigGoalsTD3
 from contrastive.config_reward import ContrastiveConfigReward
 from contrastive.config_goals_frozen_critic import ContrastiveConfigGoalsFrozenCritic
 from contrastive.config import target_entropy_from_env_spec
