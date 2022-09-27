@@ -20,6 +20,7 @@ from typing import Any, Optional, Union, Tuple
 from acme import specs
 from acme.adders import reverb as adders_reverb
 import numpy as onp
+import optax
 
 
 @dataclasses.dataclass
@@ -31,31 +32,31 @@ class ContrastiveConfigGoalsTD3:
   num_actors: int = 4
 
   # Loss options
-  batch_size: int = 512 # 256
-  actor_learning_rate: float = 3e-4
-  learning_rate: float = 3e-4
+  # batch_size: int = 512 # 256
+  # actor_learning_rate: float = 3e-4
+  # learning_rate: float = 3e-4
   reward_learning_rate: float = 3e-4
   reward_scale: float = 1
-  discount: float = 0.99
-  n_step: int = 1
+  # discount: float = 0.99
+  # n_step: int = 1
   # Coefficient applied to the entropy bonus. If None, an adaptative
   # coefficient will be used.
   entropy_coefficient: Optional[float] = None
   target_entropy: float = 0.0
   # Target smoothing coefficient.
-  tau: float = 0.005
+  # tau: float = 0.005
   hidden_layer_sizes: Tuple[int, Ellipsis] = (256, 256)
 
   # Replay options
-  min_replay_size: int = 10000
-  max_replay_size: int = 1000000
-  replay_table_name: str = adders_reverb.DEFAULT_PRIORITY_TABLE
-  prefetch_size: int = 4
+  # min_replay_size: int = 10000
+  # max_replay_size: int = 1000000
+  # replay_table_name: str = adders_reverb.DEFAULT_PRIORITY_TABLE
+  # prefetch_size: int = 4
   num_parallel_calls: Optional[int] = 4
-  samples_per_insert: float = 256
+  # samples_per_insert: float = 256
   # Rate to be used for the SampleToInsertRatio rate limitter tolerance.
   # See a formula in make_replay_tables for more details.
-  samples_per_insert_tolerance_rate: float = 0.1
+  # samples_per_insert_tolerance_rate: float = 0.1
   num_sgd_steps_per_step: int = 64  # Gradient updates to perform per step.
 
   repr_dim: Union[int, str] = 64 # Size of representation.
@@ -69,10 +70,10 @@ class ContrastiveConfigGoalsTD3:
   use_gcbc: bool = False
   use_image_obs: bool = False
   random_goals: float = 0.5
-  jit: bool = True
+  jit: bool = False
   add_mc_to_td: bool = False
   resample_neg_actions: bool = False
-  bc_coef: float = 0.0
+  # bc_coef: float = 0.0
 
   # Parameters that should be overwritten, based on each environment.
   obs_dim: int = -1
@@ -90,7 +91,37 @@ class ContrastiveConfigGoalsTD3:
 
   use_sarsa: bool = False
   use_true_reward: bool = False
+  use_l2_reward: bool = False
+  sigmoid_q: bool = False
+  hardcode_r: float = None
+  shift_learned_reward: bool = False 
 
+  ###
+
+  batch_size: int = 256
+  policy_learning_rate: Union[optax.Schedule, float] = 3e-4
+  critic_learning_rate: Union[optax.Schedule, float] = 3e-4
+  # Policy gradient clipping is not part of the original TD3 implementation,
+  # used e.g. in DAC https://arxiv.org/pdf/1809.02925.pdf
+  policy_gradient_clipping: Optional[float] = None
+  discount: float = 0.99
+  n_step: int = 1
+
+  # TD3 specific options (https://arxiv.org/pdf/1802.09477.pdf)
+  sigma: float = 0.1
+  delay: int = 2
+  target_sigma: float = 0.2
+  noise_clip: float = 0.5
+  tau: float = 0.005
+
+  # Replay options
+  min_replay_size: int = 1000
+  max_replay_size: int = 1000000
+  replay_table_name: str = adders_reverb.DEFAULT_PRIORITY_TABLE
+  prefetch_size: int = 4
+  samples_per_insert: float = 256
+  samples_per_insert_tolerance_rate: float = 0.1
+  bc_alpha: Optional[float] = None
 
 def target_entropy_from_env_spec(
     spec,

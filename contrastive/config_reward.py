@@ -87,6 +87,7 @@ class ContrastiveConfigReward:
 
   reward_loss_type: str = "bce"
   val_size: float = 0.1
+ 
 
 
 def target_entropy_from_env_spec(

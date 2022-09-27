@@ -90,8 +90,10 @@ class ContrastiveConfigGoals:
 
   use_sarsa: bool = False
   use_true_reward: bool = False
+  use_l2_reward: bool = False
   sigmoid_q: bool = False
-
+  hardcode_r: float = None
+  shift_learned_reward: bool = False 
 
 def target_entropy_from_env_spec(
     spec,

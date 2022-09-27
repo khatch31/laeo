@@ -93,9 +93,10 @@ flags.DEFINE_bool('use_gcbc', False, 'description.')
 flags.DEFINE_bool('use_td', False, 'description.')
 flags.DEFINE_bool('use_sarsa', False, 'description.')
 flags.DEFINE_bool('use_true_reward', False, 'description.')
+flags.DEFINE_bool('use_l2_reward', False, 'description.')
 flags.DEFINE_bool('sigmoid_q', False, 'description.')
-flags.DEFINE_integer('hardcode_r', None, 'description.')
-
+flags.DEFINE_float('hardcode_r', None, 'description.')
+flags.DEFINE_bool('shift_learned_reward', False, 'shift_learned_reward.')
 
 flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 
@@ -170,8 +171,14 @@ def get_program(params):
           algo += "_sarsa"
       if FLAGS.use_true_reward:
           algo += "_trueR"
+      if FLAGS.use_l2_reward:
+          algo += "_l2R"
       if FLAGS.sigmoid_q:
           algo += "_sigmoid_q"
+      if FLAGS.hardcode_r is not None:
+          algo += f"_hardcode_r={FLAGS.hardcode_r}"
+      if FLAGS.shift_learned_reward:
+          algo += "lrshift"
 
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
 
@@ -281,9 +288,10 @@ def main(_):
   params["reward_loss_type"] = FLAGS.reward_loss_type
   params["use_sarsa"] = FLAGS.use_sarsa
   params["use_true_reward"] = FLAGS.use_true_reward
+  params["use_l2_reward"] = FLAGS.use_l2_reward
   params["sigmoid_q"] = FLAGS.sigmoid_q
-
-
+  params["hardcode_r"] = FLAGS.hardcode_r
+  params["shift_learned_reward"] = FLAGS.shift_learned_reward
 
   if 'ant_' in env_name:
     params['end_index'] = 2

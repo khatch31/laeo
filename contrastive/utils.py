@@ -36,6 +36,8 @@ import os
 import io
 from glob import glob
 
+from jax.experimental import host_callback as hcb
+
 
 def obs_to_goal_1d(obs, start_index, end_index):
   assert len(obs.shape) == 1
@@ -368,20 +370,78 @@ class NoGoalActor(actors.GenericActor):
         action, self._state = self._policy(self._params, new_obs[:self._obs_dim], self._state)
         return utils.to_numpy(action)
 
+class ZeroGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, **kwargs):
+        self._obs_dim = obs_dim
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        assert observation.shape[0] % 2 == 0
+        new_obs = observation.copy()
+        new_obs[self._obs_dim:] = 0
+        # action, self._state = self._policy(self._params, new_obs, self._state)
+        action, self._state = self._policy(self._params, new_obs, self._state)
+        return utils.to_numpy(action)
+
 class InitiallyRandomNoGoalActor(actors.GenericActor):
     def __init__(self, *args, obs_dim=None, **kwargs):
         self._obs_dim = obs_dim
         super().__init__(*args, **kwargs)
 
     def select_action(self, observation):
-        if (self._params['mlp/~/linear_0']['b'] == 0).all():
-            shape = self._params['Normal/~/linear']['b'].shape
+        if 'mlp/~/linear_0' in self._params:
+            layer_key = 'mlp/~/linear_0'
+        elif 'feedforward_mlp_torso/~/linear' in self._params:
+            layer_key = 'feedforward_mlp_torso/~/linear'
+        else:
+            raise ValueError(self._params.keys())
+
+        # if (self._params['mlp/~/linear_0']['b'] == 0).all():
+        if (self._params[layer_key]['b'] == 0).all():
+            if layer_key == 'mlp/~/linear_0':
+                shape = self._params['Normal/~/linear']['b'].shape
+            else:
+                shape = self._params['near_zero_initialized_linear']['b'].shape
+
             rng, self._state = jax.random.split(self._state)
             action = jax.random.uniform(key=rng, shape=shape, minval=-1.0, maxval=1.0)
         else:
             assert observation.shape[0] % 2 == 0
             new_obs = observation.copy()
             new_obs[self._obs_dim:] = 0
+            # print("\n\nnew_obs.shape:", new_obs.shape)
             # action, self._state = self._policy(self._params, new_obs, self._state)
             action, self._state = self._policy(self._params, new_obs[:self._obs_dim], self._state)
+        return utils.to_numpy(action)
+
+
+class InitiallyRandomZeroGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, **kwargs):
+        self._obs_dim = obs_dim
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        if 'mlp/~/linear_0' in self._params:
+            layer_key = 'mlp/~/linear_0'
+        elif 'feedforward_mlp_torso/~/linear' in self._params:
+            layer_key = 'feedforward_mlp_torso/~/linear'
+        else:
+            raise ValueError(self._params.keys())
+
+        # if (self._params['mlp/~/linear_0']['b'] == 0).all():
+        if (self._params[layer_key]['b'] == 0).all():
+            if layer_key == 'mlp/~/linear_0':
+                shape = self._params['Normal/~/linear']['b'].shape
+            else:
+                shape = self._params['near_zero_initialized_linear']['b'].shape
+
+            rng, self._state = jax.random.split(self._state)
+            action = jax.random.uniform(key=rng, shape=shape, minval=-1.0, maxval=1.0)
+        else:
+            assert observation.shape[0] % 2 == 0
+            new_obs = observation.copy()
+            new_obs[self._obs_dim:] = 0
+            # print("\n\nnew_obs.shape:", new_obs.shape)
+            # action, self._state = self._policy(self._params, new_obs, self._state)
+            action, self._state = self._policy(self._params, new_obs, self._state)
         return utils.to_numpy(action)

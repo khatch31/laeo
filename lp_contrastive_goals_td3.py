@@ -75,8 +75,8 @@ flags.DEFINE_bool('exp_q_action', False, 'description.')
 
 flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
 flags.DEFINE_integer('batch_size', 256, 'description.')
-flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
-flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('policy_learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('critic_learning_rate', 3e-4, 'description.')
 flags.DEFINE_float('reward_learning_rate', 3e-4, 'description.')
 flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
 flags.DEFINE_integer('repr_dim', 64, 'description.')
@@ -88,7 +88,7 @@ flags.DEFINE_bool('save_data', False, 'description.')
 flags.DEFINE_string('data_load_dir', None, 'description.')
 flags.DEFINE_integer('max_checkpoints_to_keep', 1, 'description.')
 
-flags.DEFINE_float('bc_coef', 0, 'description.')
+flags.DEFINE_float('bc_alpha', 0, 'description.')
 flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
@@ -97,9 +97,14 @@ flags.DEFINE_bool('use_gcbc', False, 'description.')
 flags.DEFINE_bool('use_td', False, 'description.')
 flags.DEFINE_bool('use_sarsa', False, 'description.')
 flags.DEFINE_bool('use_true_reward', False, 'description.')
+flags.DEFINE_bool('use_l2_reward', False, 'description.')
+flags.DEFINE_bool('sigmoid_q', False, 'description.')
+flags.DEFINE_float('hardcode_r', None, 'description.')
+flags.DEFINE_bool('shift_learned_reward', False, 'shift_learned_reward.')
 flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 
 flags.DEFINE_string('reward_loss_type', "bce", 'description.')
+
 
 class ObjectDict(object):
     def __init__(self, dict):
@@ -157,9 +162,11 @@ def get_program(params):
 
   ###@@@###
   network_factory = functools.partial(
-      td3.networks.make_networks,
-      specs=env_spec,
-      hidden_layer_sizes=config.hidden_layer_sizes)
+      contrastive.networks_td3.make_networks,
+      # specs=env_spec,
+      obs_dim=obs_dim,
+      hidden_layer_sizes=config.hidden_layer_sizes,
+      use_image_obs=config.use_image_obs)
 
   expert_goals = environment.get_expert_goals()
   print("\nexpert_goals:\n", expert_goals)
@@ -169,8 +176,18 @@ def get_program(params):
       print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
   algo = "td3"
+  if FLAGS.use_sarsa:
+      algo += "_sarsa"
   if FLAGS.use_true_reward:
       algo += "_trueR"
+  if FLAGS.use_l2_reward:
+      algo += "_l2R"
+  if FLAGS.sigmoid_q:
+      algo += "_sigmoid_q"
+  if FLAGS.hardcode_r is not None:
+      algo += f"_hardcode_r={FLAGS.hardcode_r}"
+  if FLAGS.shift_learned_reward:
+      algo += "lrshift"
 
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
 
@@ -261,8 +278,8 @@ def main(_):
 
   params["max_number_of_steps"] = FLAGS.max_number_of_steps
   params["batch_size"] = FLAGS.batch_size
-  params["actor_learning_rate"] = FLAGS.actor_learning_rate
-  params["learning_rate"] = FLAGS.learning_rate
+  params["policy_learning_rate"] = FLAGS.policy_learning_rate
+  params["critic_learning_rate"] = FLAGS.critic_learning_rate
   params["reward_learning_rate"] = FLAGS.reward_learning_rate
   params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
   params["repr_dim"] = FLAGS.repr_dim
@@ -270,7 +287,7 @@ def main(_):
   params["hidden_layer_sizes"] = FLAGS.hidden_layer_sizes
   params["actor_min_std"] = FLAGS.actor_min_std
 
-  params["bc_coef"] = FLAGS.bc_coef
+  params["bc_alpha"] = FLAGS.bc_alpha
   params["twin_q"] = FLAGS.twin_q
 
   params["use_gcbc"] = FLAGS.use_gcbc
@@ -280,6 +297,10 @@ def main(_):
   params["reward_loss_type"] = FLAGS.reward_loss_type
   params["use_sarsa"] = FLAGS.use_sarsa
   params["use_true_reward"] = FLAGS.use_true_reward
+  params["use_l2_reward"] = FLAGS.use_l2_reward
+  params["sigmoid_q"] = FLAGS.sigmoid_q
+  params["hardcode_r"] = FLAGS.hardcode_r
+  params["shift_learned_reward"] = FLAGS.shift_learned_reward
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -323,7 +344,7 @@ def main(_):
         'samples_per_insert_tolerance_rate': 100_000_000.0,
         # For the actor update, only use future states as goals.
         'random_goals': 0.0,
-        'bc_coef': 0.05,  # Add a behavioral cloning term to the actor.
+        'bc_alpha': 0.05,  # Add a behavioral cloning term to the actor.
         'twin_q': True,  # Learn two critics, and take the minimum.
         'batch_size': 1024,  # Increase the batch size 256 --> 1024.
         'repr_dim': 16,  # Decrease the representation size 64 --> 16.
