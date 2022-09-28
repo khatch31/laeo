@@ -359,3 +359,28 @@ class FetchPushImageGoals(FetchPushImage):
 
     def get_expert_goals(self):
         return None
+
+# RGB
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+PURPLE = (255, 0, 255)
+YELLOW = (255, 255, 0)
+BLUEGREEN = (0, 255, 255)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+
+class FetchPushImageGoalsRandColors(FetchPushImageGoals):
+    def reset(self, eval=False):
+        import pdb; pdb.set_trace()
+        # TRAIN_COLORS =
+        # TEST_COLORS =
+        self.sim.model.geom_rgba[23, :3] = np.random.uniform(0, 1, 3)
+        super(FetchPushImageGoalsRandColors, self).reset()
+
+#     env.reset() method:
+# env = pick_and_place.FetchPickAndPlaceEnv()
+# env.sim.model.site_rgba[:, -1] = 0.0  # hide the goal marker
+# # env.sim.model.geom_rgba[2:5, -1] = 0.0  # hide the lasers
+#
+# Attached are some example images. Once the color is set, it stays the same until it is set again; you don't need to set the color after each env.step.

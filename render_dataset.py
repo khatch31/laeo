@@ -13,11 +13,19 @@ from contrastive import utils as contrastive_utils
 
 BASEDIR = "/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3"
 
-def render_data(basedir, headdir):
-    env, obs_dim = contrastive_utils.make_environment(headdir.split("/")[0] + "_image", start_index=0, end_index=-1, seed=0)
+def render_data(basedir, headdir, colors):
+    env_name_pieces = headdir.split("/")[0].split("-")
+    env_name_pieces[0] += "_image"
+    if colors:
+        env_name_pieces[0] += "_colors"
+    env_name = "-".join(env_name_pieces)
+    env, obs_dim = contrastive_utils.make_environment(env_name, start_index=0, end_index=-1, seed=0)
 
     print("\n\nenv._environment._environment._environment:", env._environment._environment._environment, "\n\n")
     datadir = os.path.join(basedir, headdir, "seed_0", "recorded_data")
+
+    if colors:
+        datadir += "_colors"
 
     returns = []
     any_success = []
@@ -87,11 +95,12 @@ def parse_arguments():
     from argparse import ArgumentParser
     parser = ArgumentParser(description="Save Episode Images")
     parser.add_argument("--headdir", type=str,  help="")
+    parser.add_argument("--colors", action="store_true", default=False, help="")
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_arguments()
-    render_data(BASEDIR, args.headdir)
+    render_data(BASEDIR, args.headdir, args.colors)
 
 """
 pconda
@@ -119,5 +128,9 @@ python3 -u render_dataset.py \
 python3 -u render_dataset.py \
 --headdir fetch_push-goals-no-noise/learner/nonoise_collect
 
+
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/learner/nonoise_collect_entropy \
+--colors
 
 """

@@ -91,7 +91,10 @@ def load(env_name):
           # kwargs['camera'] = "camera2"
           if "image" in env_name:
               if "goals" in env_name:
-                  CLASS = fetch_envs.FetchReachImageGoals
+                  if "colors" in env_name:
+                      CLASS = fetch_envs.FetchPushImageGoalsRandColors
+                  else:
+                      CLASS = fetch_envs.FetchReachImageGoals
               else:
                   CLASS = fetch_envs.FetchReachImage
           else:
@@ -103,7 +106,10 @@ def load(env_name):
           if "image" in env_name:
               kwargs['rand_y'] = True
               if "goals" in env_name:
-                  CLASS = fetch_envs.FetchPushImageGoals
+                  if "colors" in env_name:
+                      CLASS = fetch_envs.FetchPushImageGoalsRandColors
+                  else:
+                      CLASS = fetch_envs.FetchPushImageGoals
               else:
                   CLASS = fetch_envs.FetchPushImage
           else:
