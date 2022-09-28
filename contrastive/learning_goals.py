@@ -72,9 +72,9 @@ class ContrastiveLearnerGoals(acme.Learner):
       rng,
       policy_optimizer,
       q_optimizer,
-      r_optimizer,
+      # r_optimizer,
       iterator,
-      val_iterator,
+      # val_iterator,
       counter,
       logger,
       obs_to_goal,
@@ -200,8 +200,8 @@ class ContrastiveLearnerGoals(acme.Learner):
         actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
         new_actor_obs = jnp.concatenate([state, actor_goal], axis=1)
         # hcb.id_print(new_actor_obs, what="\n\nnew_actor_obs")
-        dist_params = networks.policy_network.apply(
-            policy_params, new_actor_obs)
+        dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
+        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
         log_prob = networks.log_prob(dist_params, transitions.action)
         actor_loss = -1.0 * jnp.mean(log_prob)
       else:
@@ -239,8 +239,8 @@ class ContrastiveLearnerGoals(acme.Learner):
         new_actor_obs = jnp.concatenate([new_state, new_actor_goal], axis=1)
         # hcb.id_print(new_actor_obs[0], what="new_actor_obs")
         # hcb.id_print(new_actor_obs.shape, what="new_actor_obs.shape")
-        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
-        dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
+        dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
+        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
 
         action = networks.sample(dist_params, key)
         log_prob = networks.log_prob(dist_params, action)
@@ -300,7 +300,8 @@ class ContrastiveLearnerGoals(acme.Learner):
         all_transitions,
     ):
 
-      transitions, val_transitions = all_transitions
+      # transitions, val_transitions = all_transitions
+      transitions = all_transitions
       key, key_alpha, key_critic, key_actor = jax.random.split(state.key, 4)
 
       if adaptive_entropy_coefficient:
@@ -380,7 +381,7 @@ class ContrastiveLearnerGoals(acme.Learner):
 
     # Iterator on demonstration transitions.
     self._iterator = iterator
-    self._val_iterator = val_iterator
+    # self._val_iterator = val_iterator
 
     update_step = utils.process_multiple_batches(update_step,
                                                  config.num_sgd_steps_per_step)
@@ -426,10 +427,11 @@ class ContrastiveLearnerGoals(acme.Learner):
       sample = next(self._iterator)
       transitions = types.Transition(*sample.data)
 
-      val_sample = next(self._val_iterator)
-      val_transitions = types.Transition(*val_sample.data)
+      # val_sample = next(self._val_iterator)
+      # val_transitions = types.Transition(*val_sample.data)
 
-      self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
+      # self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
+      self._state, metrics = self._update_step(self._state, transitions)
 
     # Compute elapsed time.
     timestamp = time.time()

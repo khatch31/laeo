@@ -209,7 +209,7 @@ class DistributedLayoutGoalsTD3:
       self,
       random_key,
       replay,
-      val_replay,
+      # val_replay,
       counter,
       expert_goals, ###===### ###---###
   ):
@@ -219,7 +219,7 @@ class DistributedLayoutGoalsTD3:
     if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
-        val_adder = self._builder.make_adder(val_replay, force_no_save=True)
+        # val_adder = self._builder.make_adder(val_replay, force_no_save=True)
 
   #       def make_adder(
   #     self, replay_client: reverb.Client,
@@ -289,12 +289,12 @@ class DistributedLayoutGoalsTD3:
 
                 if ep_idx in val_ep_idxs: # Add to val replay buffer
                     val_examples_added += 1
-                    if t == 0:
-                        assert episode["step_type"][t] == dm_env.StepType.FIRST
-                        val_adder.add_first(ts)  # pytype: disable=attribute-error
-                    else:
-                        assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
-                        val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                    # if t == 0:
+                    #     assert episode["step_type"][t] == dm_env.StepType.FIRST
+                    #     val_adder.add_first(ts)  # pytype: disable=attribute-error
+                    # else:
+                    #     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
+                    #     val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
                 else: # Add to train replay buffer
                     train_examples_added += 1
                     if t == 0:
@@ -319,7 +319,7 @@ class DistributedLayoutGoalsTD3:
 
 
     iterator = self._builder.make_dataset_iterator(replay)
-    val_iterator = self._builder.make_dataset_iterator(val_replay)
+    # val_iterator = self._builder.make_dataset_iterator(val_replay)
 
     dummy_seed = 1
     environment_spec = (
@@ -344,7 +344,9 @@ class DistributedLayoutGoalsTD3:
     counter = counting.Counter(counter, 'learner')
 
 
-    learner = self._builder.make_learner(random_key, networks, iterator, val_iterator, replay,
+    # learner = self._builder.make_learner(random_key, networks, iterator, val_iterator, replay,
+    #                                      counter, expert_goals) ###===### ###---###
+    learner = self._builder.make_learner(random_key, networks, iterator, replay,
                                          counter, expert_goals) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
@@ -419,10 +421,10 @@ class DistributedLayoutGoalsTD3:
 
     if self._builder._config.env_name.startswith('offline'):
         replay_node = lp.ReverbNode(self.replay)
-        val_replay_node = lp.ReverbNode(self.replay)
+        # val_replay_node = lp.ReverbNode(self.replay)
     else:
         replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
-        val_replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
+        # val_replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
 
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:
@@ -430,11 +432,11 @@ class DistributedLayoutGoalsTD3:
       else:
         replay = program.add_node(replay_node)
 
-    with program.group('val_replay'):
-        if self._multithreading_colocate_learner_and_reverb:
-            val_replay = val_replay_node.create_handle()
-        else:
-            val_replay = program.add_node(val_replay_node)
+    # with program.group('val_replay'):
+    #     if self._multithreading_colocate_learner_and_reverb:
+    #         val_replay = val_replay_node.create_handle()
+    #     else:
+    #         val_replay = program.add_node(val_replay_node)
 
     with program.group('counter'):
       counter = program.add_node(lp.CourierNode(self.counter))
@@ -444,12 +446,14 @@ class DistributedLayoutGoalsTD3:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, val_replay, counter, self._expert_goals) ###===### ###---###
+    # learner_node = lp.CourierNode(self.learner, learner_key, replay, val_replay, counter, self._expert_goals) ###===### ###---###
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()
         program.add_node(
-            lp.MultiThreadingColocation([learner_node, replay_node, val_replay_node]))
+            # lp.MultiThreadingColocation([learner_node, replay_node, val_replay_node]))
+            lp.MultiThreadingColocation([learner_node, replay_node]))
       else:
         learner = program.add_node(learner_node)
 

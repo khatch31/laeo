@@ -102,6 +102,8 @@ flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 
 flags.DEFINE_string('reward_loss_type', "bce", 'description.')
 
+flags.DEFINE_integer('seed', 0, 'description.')
+
 
 @functools.lru_cache()
 def get_env(env_name, start_index, end_index):
@@ -292,6 +294,7 @@ def main(_):
   params["sigmoid_q"] = FLAGS.sigmoid_q
   params["hardcode_r"] = FLAGS.hardcode_r
   params["shift_learned_reward"] = FLAGS.shift_learned_reward
+  params["seed"] = FLAGS.seed
 
   if 'ant_' in env_name:
     params['end_index'] = 2

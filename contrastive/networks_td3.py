@@ -74,8 +74,17 @@ def make_networks(
   TORSO = networks_lib.AtariTorso  # pylint: disable=invalid-name
 
   def _unflatten_obs(obs):
-    state = jnp.reshape(obs[:, :obs_dim], (-1, 64, 64, 3)) / 255.0
-    goal = jnp.reshape(obs[:, obs_dim:], (-1, 64, 64, 3)) / 255.0
+    # print("obs.shape:", obs.shape)
+
+    if len(obs.shape) == 2:
+        state = jnp.reshape(obs[:, :obs_dim], (-1, 64, 64, 3)) / 255.0
+        goal = jnp.reshape(obs[:, obs_dim:], (-1, 64, 64, 3)) / 255.0
+    elif len(obs.shape) == 1:
+        state = jnp.reshape(obs[:obs_dim], (64, 64, 3)) / 255.0
+        goal = jnp.reshape(obs[obs_dim:], (64, 64, 3)) / 255.0
+    else:
+        raise ValueError(f"obs.shape: {obs.shape}")
+
     return state, goal
 
   def add_policy_noise(action: types.NestedArray,
@@ -95,6 +104,11 @@ def make_networks(
     #   obs = TORSO()(obs)
 
     # obs = jnp.concatenate([obs[:, :obs_dim], np.zeros_like(obs[:, :obs_dim])], axis=-1)
+    if use_image_obs:
+      state, goal = _unflatten_obs(obs)
+      # obs = jnp.concatenate([state, goal], axis=-1)
+      obs = state
+      obs = TORSO()(obs)
 
     network = hk.Sequential([
         networks_lib.LayerNormMLP(hidden_layer_sizes,
@@ -108,15 +122,12 @@ def make_networks(
   def _critic_fn(obs: types.NestedArray,
                  action: types.NestedArray) -> types.NestedArray:
 
-    # if use_image_obs:
-    #   state, goal = _unflatten_obs(obs)
-    #   obs = state
-    #   obs = TORSO()(obs)
-    # else:
-    #   # print("\n\n(critic) obs.shape:", obs.shape)
-    #   obs = obs[..., :obs_dim]
-    #   # print("(critic after) obs.shape:", obs.shape)
-    # obs = jnp.concatenate([obs[:, :obs_dim], np.zeros_like(obs[:, :obs_dim])], axis=-1)
+
+    if use_image_obs:
+      state, goal = _unflatten_obs(obs)
+      # obs = jnp.concatenate([state, goal], axis=-1)
+      obs = state
+      obs = TORSO()(obs)
 
     network1 = hk.Sequential([
         networks_lib.LayerNormMLP(list(hidden_layer_sizes) + [1]),
@@ -126,11 +137,11 @@ def make_networks(
     return jnp.squeeze(value)
 
   def _reward_fn(obs):
-    # if use_image_obs:
-    #   state, goal = _unflatten_obs(obs)
-    #   # obs = jnp.concatenate([state, goal], axis=-1)
-    #   obs = state
-    #   obs = TORSO()(obs)
+    if use_image_obs:
+      state, goal = _unflatten_obs(obs)
+      # obs = jnp.concatenate([state, goal], axis=-1)
+      obs = state
+      obs = TORSO()(obs)
     network = hk.Sequential([
         hk.nets.MLP(
             list(hidden_layer_sizes) + [1],

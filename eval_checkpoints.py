@@ -26,8 +26,13 @@ def eval(basedir, headdir):
     checkpoint_files = sorted(checkpoint_files, key=lambda x:int(x.split("/")[-1].split("-")[-1].split(".")[0]))
 
     for checkpoint_file in checkpoint_files:
-        reader = tf.train.load_checkpoint(checkpoint_file)
-        # reader = tf.train.load_checkpoint(os.path.join(basedir, headdir, "seed_0", "checkpoints", "learner"))
+        # reader = tf.train.load_checkpoint(checkpoint_file)
+
+        # Just use the checkpoint number 
+
+
+        reader = tf.train.load_checkpoint(os.path.join(basedir, headdir, "seed_0", "checkpoints", "learner"))
+        import pdb; pdb.set_trace()
         params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
         state = dill.loads(params)
 

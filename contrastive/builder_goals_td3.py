@@ -70,7 +70,7 @@ class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
       random_key,
       networks,
       dataset,
-      val_dataset,
+      # val_dataset,
       replay_client = None,
       counter = None,
       expert_goals=None, ###===### ###---###
@@ -100,7 +100,7 @@ class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
         use_sarsa_target=self._config.use_sarsa,
         bc_alpha=self._config.bc_alpha,
         iterator=dataset,
-        val_iterator=val_dataset,
+        # val_iterator=val_dataset,
         logger=self._logger_fn(),
         config=self._config,
         counter=counter,

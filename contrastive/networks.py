@@ -32,7 +32,7 @@ class ContrastiveNetworks:
   """Network and pure functions for the Contrastive RL agent."""
   policy_network: networks_lib.FeedForwardNetwork
   q_network: networks_lib.FeedForwardNetwork
-  r_network: networks_lib.FeedForwardNetwork
+  # r_network: networks_lib.FeedForwardNetwork
   log_prob: networks_lib.LogProbFn
   repr_fn: Callable[Ellipsis, networks_lib.NetworkOutput]
   sample: networks_lib.SampleFn
@@ -169,18 +169,23 @@ def make_networks(
     return network(obs)
 
   def _actor_fn(obs):
+
     # if use_image_obs:
     #   state, goal = _unflatten_obs(obs)
     #   # assert np.all(goal == 0)
     #   obs = jnp.concatenate([state, goal], axis=-1)
     #   obs = TORSO()(obs)
     # else:
-    #   # assert np.all(obs[:, :obs_dim] == 0)
+    #   assert np.all(obs[:, :obs_dim] == 0)
     if use_image_obs:
       state, goal = _unflatten_obs(obs)
-      # obs = jnp.concatenate([state, goal], axis=-1)
-      obs = state
+      obs = jnp.concatenate([state, goal], axis=-1)
       obs = TORSO()(obs)
+    # if use_image_obs:
+    #   state, goal = _unflatten_obs(obs)
+    #   # obs = jnp.concatenate([state, goal], axis=-1)
+    #   obs = state
+    #   obs = TORSO()(obs)
     network = hk.Sequential([
         hk.nets.MLP(
             list(hidden_layer_sizes),
@@ -204,16 +209,16 @@ def make_networks(
   dummy_obs = utils.add_batch_dim(dummy_obs)
 
   return ContrastiveNetworks(
-      # policy_network=networks_lib.FeedForwardNetwork(
-      #     lambda key: policy.init(key, dummy_obs), policy.apply),
       policy_network=networks_lib.FeedForwardNetwork(
-          lambda key: policy.init(key, dummy_obs[:, :obs_dim]), policy.apply),
+          lambda key: policy.init(key, dummy_obs), policy.apply),
+      # policy_network=networks_lib.FeedForwardNetwork(
+      #     lambda key: policy.init(key, dummy_obs[:, :obs_dim]), policy.apply),
       q_network=networks_lib.FeedForwardNetwork(
           lambda key: critic.init(key, dummy_obs, dummy_action), critic.apply),
+      # # r_network=networks_lib.FeedForwardNetwork(
+      # #     lambda key: reward.init(key, dummy_obs, dummy_action), reward.apply),
       # r_network=networks_lib.FeedForwardNetwork(
-      #     lambda key: reward.init(key, dummy_obs, dummy_action), reward.apply),
-      r_network=networks_lib.FeedForwardNetwork(
-          lambda key: reward.init(key, dummy_obs[:, :obs_dim]), reward.apply),
+      #     lambda key: reward.init(key, dummy_obs[:, :obs_dim]), reward.apply),
       repr_fn=repr_fn.apply,
       log_prob=lambda params, actions: params.log_prob(actions),
       sample=lambda params, key: params.sample(seed=key),

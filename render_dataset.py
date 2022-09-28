@@ -27,6 +27,9 @@ def render_data(basedir, headdir, colors):
     if colors:
         datadir += "_colors"
 
+    print("datadir:", datadir)
+    print("env_name:", env_name)
+
     returns = []
     any_success = []
     end_success = []
@@ -38,7 +41,7 @@ def render_data(basedir, headdir, colors):
     # j = 0
     for episode_file in tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
         # j += 1
-        # if j > 1000:
+        # if j > 50:
         #     break
         env._sample_goal()
         env.reset()
@@ -53,7 +56,7 @@ def render_data(basedir, headdir, colors):
         end_success.append(episode["reward"][-1].sum() > 0)
         end_5_success.append(episode["reward"][-5:].sum() > 0)
 
-    #     writer = []
+        # writer = [] ###@@@###
         images = np.zeros((episode["observation"].shape[0], 64 * 64 * 3), dtype=np.uint8)
         for t in range(episode["observation"].shape[0]):
 
