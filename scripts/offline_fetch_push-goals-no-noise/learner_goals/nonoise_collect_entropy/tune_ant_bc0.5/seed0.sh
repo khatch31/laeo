@@ -41,7 +41,7 @@ python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals11 \
 --env_name=offline_fetch_push-goals-no-noise \
---seed=2 \
+--seed=3 \
 --description=nonoise_collect_entropy--tune_ant_bc0.5 \
 --entropy_coefficient=0 \
 --max_number_of_steps=7000 \

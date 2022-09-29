@@ -59,6 +59,4 @@ python3 -u lp_contrastive_goals_td3.py \
 --bc_alpha=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
 --data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data
-# --reward_checkpoint_path=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals11/offline_fetch_reach_image-goals-no-noise/reward/nonoise_collect_entropy--ta_bce/seed_0/checkpoints/learner
-
-# --project=contrastive_rl_goals11 \
+# --data_load_dir=datasets/reach_easy

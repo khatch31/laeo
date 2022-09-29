@@ -378,9 +378,50 @@ class FetchPushImageGoalsRandColors(FetchPushImageGoals):
         return super(FetchPushImageGoalsRandColors, self).reset()
         # self.sim.model.geom_rgba[23, :3] = np.random.uniform(0, 1, 3)
 
+class FetchPushImageGoalsRED(FetchPushImageGoals):
+    def reset(self):
+        # TRAIN_COLORS =
+        # TEST_COLORS =
+        self.sim.model.geom_rgba[23, :3] = np.array([0.5, 0, 0])
+        return super(FetchPushImageGoalsRED, self).reset()
+
 #     env.reset() method:
 # env = pick_and_place.FetchPickAndPlaceEnv()
 # env.sim.model.site_rgba[:, -1] = 0.0  # hide the goal marker
 # # env.sim.model.geom_rgba[2:5, -1] = 0.0  # hide the lasers
 #
 # Attached are some example images. Once the color is set, it stays the same until it is set again; you don't need to set the color after each env.step.
+class FetchPushImageGoalsOccluded(FetchPushImageGoals):
+    def _viewer_setup(self):
+      super(FetchPushImage, self)._viewer_setup()
+      # if self._camera_name == 'camera1':
+      #   self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])
+      #   self.viewer.cam.distance = 0.9
+      #   self.viewer.cam.azimuth = 180
+      #   self.viewer.cam.elevation = -40
+      # elif self._camera_name == 'camera2':
+      #   self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      #   self.viewer.cam.distance = 0.65
+      #   self.viewer.cam.azimuth = 90
+      #   self.viewer.cam.elevation = -40
+      # elif self._camera_name == 'camera3':
+      #   self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      #   self.viewer.cam.distance = 0.9
+      #   self.viewer.cam.azimuth = 90
+      #   self.viewer.cam.elevation = -40
+      # else:
+      #   raise NotImplementedError
+
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.7
+      self.viewer.cam.azimuth = 180.0
+      self.viewer.cam.elevation = -80.0
+
+# env = pick_and_place.FetchPickAndPlaceEnv()
+# env.sim.model.site_rgba[:, -1] = 0.0
+# env.sim.model.geom_rgba[2:5, -1] = 0.0  # hide the lasers
+# env.render(mode='rgb_array', height=1024, width=1024)
+#
+# img = env.render(mode='rgb_array', height=1024, width=1024)
+# plt.imshow(img)
+# plt.show()

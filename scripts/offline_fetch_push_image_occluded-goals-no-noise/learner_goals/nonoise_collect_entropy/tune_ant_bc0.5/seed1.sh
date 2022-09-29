@@ -40,8 +40,8 @@ python3 -u gpu_test.py
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals11 \
---env_name=offline_fetch_push_image_red-goals-no-noise \
---seed=0 \
+--env_name=offline_fetch_push_image_occluded-goals-no-noise \
+--seed=1 \
 --description=nonoise_collect_entropy--ta_bc0.5 \
 --entropy_coefficient=0 \
 --max_number_of_steps=7000 \
@@ -55,5 +55,5 @@ python3 -u lp_contrastive_goals.py \
 --twin_q=true \
 --bc_coef=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_push-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data_red
-# --data_load_dir=datasets/push_easy_red
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_push-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data_occluded
+# --data_load_dir=datasets/push_easy_occluded

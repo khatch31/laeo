@@ -13,11 +13,15 @@ from contrastive import utils as contrastive_utils
 
 BASEDIR = "/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3"
 
-def render_data(basedir, headdir, colors):
+def render_data(basedir, headdir, colors, occluded, red):
     env_name_pieces = headdir.split("/")[0].split("-")
     env_name_pieces[0] += "_image"
     if colors:
         env_name_pieces[0] += "_colors"
+    if occluded:
+        env_name_pieces[0] += "_occluded"
+    if red:
+        env_name_pieces[0] += "_red"
     env_name = "-".join(env_name_pieces)
     env, obs_dim = contrastive_utils.make_environment(env_name, start_index=0, end_index=-1, seed=0)
 
@@ -26,6 +30,10 @@ def render_data(basedir, headdir, colors):
 
     if colors:
         datadir += "_colors"
+    if occluded:
+        datadir += "_occluded"
+    if red:
+        datadir += "_red"
 
     print("datadir:", datadir)
     print("env_name:", env_name)
@@ -38,11 +46,11 @@ def render_data(basedir, headdir, colors):
     episode_files = glob(os.path.join(datadir, "*.npz"))
     get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
     episode_files = sorted(episode_files, key=get_ep_no)
-    # j = 0
+    j = 0
     for episode_file in tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
-        # j += 1
-        # if j > 50:
-        #     break
+        j += 1
+        if j > 20:
+            break
         env._sample_goal()
         env.reset()
         with open(episode_file, 'rb') as f:
@@ -99,11 +107,13 @@ def parse_arguments():
     parser = ArgumentParser(description="Save Episode Images")
     parser.add_argument("--headdir", type=str,  help="")
     parser.add_argument("--colors", action="store_true", default=False, help="")
+    parser.add_argument("--red", action="store_true", default=False, help="")
+    parser.add_argument("--occluded", action="store_true", default=False, help="")
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_arguments()
-    render_data(BASEDIR, args.headdir, args.colors)
+    render_data(BASEDIR, args.headdir, args.colors, args.occluded, args.red)
 
 """
 pconda
@@ -135,5 +145,13 @@ python3 -u render_dataset.py \
 python3 -u render_dataset.py \
 --headdir fetch_push-goals-no-noise/learner/nonoise_collect_entropy \
 --colors
+
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/learner/nonoise_collect_entropy \
+--occluded
+
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/learner/nonoise_collect_entropy \
+--red
 
 """

@@ -92,7 +92,9 @@ def load(env_name):
           if "image" in env_name:
               if "goals" in env_name:
                   if "colors" in env_name:
-                      CLASS = fetch_envs.FetchPushImageGoalsRandColors
+                      CLASS = fetch_envs.FetchReachImageGoalsRandColors
+                  if "occluded" in env_name:
+                      CLASS = fetch_envs.FetchReachImageGoalsOccluded
                   else:
                       CLASS = fetch_envs.FetchReachImageGoals
               else:
@@ -108,6 +110,10 @@ def load(env_name):
               if "goals" in env_name:
                   if "colors" in env_name:
                       CLASS = fetch_envs.FetchPushImageGoalsRandColors
+                  elif "red" in env_name:
+                      CLASS = fetch_envs.FetchPushImageGoalsRED
+                  elif "occluded" in env_name:
+                      CLASS = fetch_envs.FetchPushImageGoalsOccluded
                   else:
                       CLASS = fetch_envs.FetchPushImageGoals
               else:

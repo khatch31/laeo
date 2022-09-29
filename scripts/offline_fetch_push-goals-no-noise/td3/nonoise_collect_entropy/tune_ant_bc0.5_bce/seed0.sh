@@ -41,7 +41,7 @@ python3 -u lp_contrastive_goals_td3.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals11 \
 --env_name=offline_fetch_push-goals-no-noise \
---seed=2 \
+--seed=3 \
 --description=nonoise_collect_entropy--tune_ant_bc0.5_bce \
 --use_td=true \
 --reward_loss_type=bce \

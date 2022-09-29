@@ -40,7 +40,7 @@ python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals11 \
 --env_name=offline_fetch_reach-goals-no-noise \
---seed=0 \
+--seed=2 \
 --description=nonoise_collect_entropy--tune_ant \
 --use_gcbc=true \
 --entropy_coefficient=0 \
