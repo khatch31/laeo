@@ -23,12 +23,15 @@ import os
 import ant_env
 import fetch_envs
 import gym
+import sys; sys.path.append("/iris/u/khatch/metaworld_door")
 import metaworld
 import numpy as np
 import point_env
 import point_env_fixed_goal
 
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
+
+import ceborl_envs
 
 
 def euler2quat(euler):
@@ -81,6 +84,19 @@ def load(env_name):
   elif env_name == 'sawyer_window':
     CLASS = SawyerWindow
     max_episode_steps = 150
+  elif "ceborl" in env_name:
+      # Eg: offline_ceborl-dial_turn
+      max_episode_steps = 50
+      if "offline" in env_name:
+          env_name = env_name[:][len("offline_"):]
+          print("env_name:", env_name)
+
+      task_name = env_name.split("-")[-1]
+      print("task_name:", task_name)
+      gym_env, obs_dim = ceborl_envs.get_env(task_name, image_obs="image" in env_name)
+
+      return gym_env, obs_dim, max_episode_steps
+
   elif "fetch" in env_name:
       max_episode_steps = 50
       if "offline" in env_name:

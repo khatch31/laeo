@@ -150,3 +150,129 @@ Okay I think the cudnn issues are finally fixed! I posted in the help channel an
 and then also running export XLA_PYTHON_CLIENT_MEM_FRACTION=.7. Neither of these on their own did the trick, but it seems to work when I do both of them. Weirdly, when I look at the gpu usage using watch nvidia-smi, setting XLA_PYTHON_CLIENT_MEM_FRACTION=.7 it doesn’t limit the gpu usage to 70%. It still goes all the way up to 90% percent, but it goes up to 90% a little bit more slowly than if I don’t set XLA_PYTHON_CLIENT_MEM_FRACTION=.7. For some reason this makes it work. Anyway, I’m happy that this finally appears to be solved after spending like two days on this lol. I’ll kick off the image based experiments now
 
 https://github.com/google/jax/discussions/6332#discussioncomment-1279991
+
+
+
+================================================================
+Actor zero vs slice
+================================================================
+networks.py
+- change last return at end of file and _actor_fn
+learning_goals.py
+- ctrl + F for policy_network.apply
+builder_goals.py
+- make actor
+
+================================================================
+Val vs no val iterator
+================================================================
+learning_goals
+builder_goals
+distributed_layout_goals
+Ctrl + F for val, _val, and val_
+
+
+================================================================
+RuntimeError: Failed to initialize OpenGL
+on iris5 and iris6
+================================================================
+
+libEGL warning: failed to open /dev/dri/renderD129: Permission denied
+
+libEGL warning: failed to open /dev/dri/renderD129: Permission denied
+
+Could not initialize EGL
+Loading episode files:   0%|          | 2/4004 [00:00<07:13,  9.24it/s]Node ThreadWorker(thread=<Thread(evaluator, stopped daemon 140327008593664)>, future=<Future at 0x7faa103b5670 state=finished raised RuntimeError>) crashed:
+Loading episode files:   0%|          | 9/4004 [00:00<02:05, 31.94it/s]Traceback (most recent call last):
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/launch/worker_manager.py", line 474, in _check_workers
+    worker.future.result()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/concurrent/futures/_base.py", line 439, in result
+    return self.__get_result()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/concurrent/futures/_base.py", line 391, in __get_result
+    raise self._exception
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/launch/worker_manager.py", line 250, in run_inner
+    future.set_result(f())
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/nodes/python/node.py", line 75, in _construct_function
+    return functools.partial(self._function, *args, **kwargs)()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/nodes/courier/node.py", line 130, in run
+    instance.run()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/environment_loop.py", line 176, in run
+    result = self.run_episode()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/environment_loop.py", line 94, in run_episode
+    timestep = self._environment.reset()
+  File "/iris/u/khatch/contrastive_rl/contrastive/utils.py", line 313, in reset
+    timestep = self._environment.reset()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/wrappers/step_limit.py", line 35, in reset
+    return self._environment.reset()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/wrappers/gym_wrapper.py", line 51, in reset
+    observation = self._environment.reset()
+  File "/iris/u/khatch/contrastive_rl/fetch_envs.py", line 282, in reset
+    self._goal_img = self.observation(s)
+  File "/iris/u/khatch/contrastive_rl/fetch_envs.py", line 325, in observation
+    img = self.render(mode='rgb_array', height=64, width=64)
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/fetch_env.py", line 230, in render
+    return super(FetchEnv, self).render(mode, width, height)
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/robot_env.py", line 109, in render
+    self._get_viewer(mode).render(width, height)
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/robot_env.py", line 123, in _get_viewer
+    self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=-1)
+  File "mujoco_py/mjrendercontext.pyx", line 46, in mujoco_py.cymj.MjRenderContext.__init__
+  File "mujoco_py/mjrendercontext.pyx", line 114, in mujoco_py.cymj.MjRenderContext._setup_opengl_context
+  File "mujoco_py/opengl_context.pyx", line 130, in mujoco_py.cymj.OffscreenOpenGLContext.__init__
+RuntimeError: Failed to initialize OpenGL
+I1005 16:00:56.976415 140370798453952 savers.py:207] Caught SIGTERM: forcing a checkpoint save.
+I1005 16:00:56.976747 140370798453952 savers.py:156] Saving checkpoint: /iris/u/khatch/contrastive_rl/results/trash_results/offline_fetch_push_image-goals-no-noise/learner_goals/nonoise_collect_entropy-bc0.5_b1024/seed_0/checkpoints/counter
+Loading episode files:   0%|          | 16/4004 [00:00<01:29, 44.40it/s]Exception ignored in: <module 'threading' from '/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/threading.py'>
+Traceback (most recent call last):
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/threading.py", line 1447, in _shutdown
+    atexit_call()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/launch/worker_manager.py", line 428, in wait
+    raise failure
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/launch/worker_manager.py", line 474, in _check_workers
+    worker.future.result()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/concurrent/futures/_base.py", line 439, in result
+    return self.__get_result()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/concurrent/futures/_base.py", line 391, in __get_result
+    raise self._exception
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/launch/worker_manager.py", line 250, in run_inner
+    future.set_result(f())
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/nodes/python/node.py", line 75, in _construct_function
+    return functools.partial(self._function, *args, **kwargs)()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/launchpad/nodes/courier/node.py", line 130, in run
+    instance.run()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/environment_loop.py", line 176, in run
+    result = self.run_episode()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/environment_loop.py", line 94, in run_episode
+    timestep = self._environment.reset()
+  File "/iris/u/khatch/contrastive_rl/contrastive/utils.py", line 313, in reset
+    timestep = self._environment.reset()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/wrappers/step_limit.py", line 35, in reset
+    return self._environment.reset()
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/acme/wrappers/gym_wrapper.py", line 51, in reset
+    observation = self._environment.reset()
+  File "/iris/u/khatch/contrastive_rl/fetch_envs.py", line 282, in reset
+    self._goal_img = self.observation(s)
+  File "/iris/u/khatch/contrastive_rl/fetch_envs.py", line 325, in observation
+    img = self.render(mode='rgb_array', height=64, width=64)
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/fetch_env.py", line 230, in render
+    return super(FetchEnv, self).render(mode, width, height)
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/robot_env.py", line 109, in render
+    self._get_viewer(mode).render(width, height)
+  File "/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/robot_env.py", line 123, in _get_viewer
+    self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=-1)
+  File "mujoco_py/mjrendercontext.pyx", line 46, in mujoco_py.cymj.MjRenderContext.__init__
+  File "mujoco_py/mjrendercontext.pyx", line 114, in mujoco_py.cymj.MjRenderContext._setup_opengl_context
+  File "mujoco_py/opengl_context.pyx", line 130, in mujoco_py.cymj.OffscreenOpenGLContext.__init__
+RuntimeError: Failed to initialize OpenGL
+
+/iris/u/khatch/anaconda3/envs/crl2/lib/python3.9/site-packages/gym/envs/robotics/robot_env.py
+in def _get_viewer, change
+
+self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=-1)
+to
+self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=0)
+
+Solution from here: https://github.com/openai/mujoco-py/issues/390#issuecomment-770408780
+Some also potentially useful things: https://github.com/openai/mujoco-py/issues/187
+Could also try to fix this "libEGL warning: failed to open /dev/dri/renderD129: Permission denied"
+https://github.com/deepmind/dm_control/issues/214

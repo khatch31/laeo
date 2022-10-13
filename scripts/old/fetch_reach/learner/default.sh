@@ -42,8 +42,10 @@ ls -l /usr/local
 
 python3 -u lp_contrastive.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals \
+--project=trash_results \
 --env_name=fetch_reach \
+--description=num_sgd1 \
+--num_sgd_steps_per_step=1 \
 --logdir=/iris/u/khatch/contrastive_rl/results
 
 # --project=contrastive_rl_goals \

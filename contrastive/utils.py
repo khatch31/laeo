@@ -52,6 +52,14 @@ def obs_to_goal_2d(obs, start_index, end_index):
     return obs[:, start_index:end_index]
 
 
+def count_episodes(data_load_dir, val_size):
+    episode_files = glob(os.path.join(data_load_dir, "**", "*.npz"), recursive=True)
+    all_ep_idxs = np.arange(len(episode_files))
+    val_ep_idxs = all_ep_idxs[:int(len(episode_files) * val_size)] # Slice off the first big
+    train_ep_idxs = all_ep_idxs[val_ep_idxs.shape[0]:]
+    assert len(train_ep_idxs) + len(val_ep_idxs) == len(all_ep_idxs)
+    return len(train_ep_idxs), len(val_ep_idxs)
+
 class SuccessObserver(observers_base.EnvLoopObserver):
   """Measures success by whether any of the rewards in an episode are positive.
   """

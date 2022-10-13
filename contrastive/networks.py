@@ -117,9 +117,13 @@ def make_networks(
     return jax.numpy.einsum('ik,jk->ij', sa_repr, g_repr)
 
   def _critic_fn(obs, action):
+    print(f"[_critic_fn] obs: {obs}, obs.shape: {obs.shape}")
+    print(f"[_critic_fn] action: {action}, action.shape: {action.shape}")
     sa_repr, g_repr, hidden = _repr_fn(obs, action)
     outer = _combine_repr(sa_repr, g_repr)
     if twin_q:
+      print(f"[_critic_fn] obs: {obs}, obs.shape: {obs.shape}")
+      print(f"[_critic_fn] action: {action}, action.shape: {action.shape}")
       sa_repr2, g_repr2, _ = _repr_fn(obs, action, hidden=hidden)
       outer2 = _combine_repr(sa_repr2, g_repr2)
       # outer.shape = [batch_size, batch_size, 2]
@@ -169,23 +173,14 @@ def make_networks(
     return network(obs)
 
   def _actor_fn(obs):
-
-    # if use_image_obs:
-    #   state, goal = _unflatten_obs(obs)
-    #   # assert np.all(goal == 0)
-    #   obs = jnp.concatenate([state, goal], axis=-1)
-    #   obs = TORSO()(obs)
-    # else:
-    #   assert np.all(obs[:, :obs_dim] == 0)
+    print(f"[_actor_fn] obs: {obs}, obs.shape: {obs.shape}")
     if use_image_obs:
       state, goal = _unflatten_obs(obs)
-      obs = jnp.concatenate([state, goal], axis=-1)
+      # obs = jnp.concatenate([state, goal], axis=-1)
+      obs = state
+      print(f"[_actor_fn] obs: {obs}, obs.shape: {obs.shape}")
       obs = TORSO()(obs)
-    # if use_image_obs:
-    #   state, goal = _unflatten_obs(obs)
-    #   # obs = jnp.concatenate([state, goal], axis=-1)
-    #   obs = state
-    #   obs = TORSO()(obs)
+
     network = hk.Sequential([
         hk.nets.MLP(
             list(hidden_layer_sizes),
@@ -195,6 +190,7 @@ def make_networks(
         networks_lib.NormalTanhDistribution(num_dimensions,
                                             min_scale=actor_min_std),
     ])
+    print(f"[_actor_fn] obs: {obs}, obs.shape: {obs.shape}")
     return network(obs)
 
   policy = hk.without_apply_rng(hk.transform(_actor_fn))
@@ -209,10 +205,10 @@ def make_networks(
   dummy_obs = utils.add_batch_dim(dummy_obs)
 
   return ContrastiveNetworks(
-      policy_network=networks_lib.FeedForwardNetwork(
-          lambda key: policy.init(key, dummy_obs), policy.apply),
       # policy_network=networks_lib.FeedForwardNetwork(
-      #     lambda key: policy.init(key, dummy_obs[:, :obs_dim]), policy.apply),
+      #     lambda key: policy.init(key, dummy_obs), policy.apply),
+      policy_network=networks_lib.FeedForwardNetwork(
+          lambda key: policy.init(key, dummy_obs[:, :obs_dim]), policy.apply),
       q_network=networks_lib.FeedForwardNetwork(
           lambda key: critic.init(key, dummy_obs, dummy_action), critic.apply),
       # # r_network=networks_lib.FeedForwardNetwork(

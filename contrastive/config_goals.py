@@ -69,7 +69,7 @@ class ContrastiveConfigGoals:
   use_gcbc: bool = False
   use_image_obs: bool = False
   random_goals: float = 0.5
-  jit: bool = True
+  jit: bool = False
   add_mc_to_td: bool = False
   resample_neg_actions: bool = False
   bc_coef: float = 0.0
@@ -93,7 +93,9 @@ class ContrastiveConfigGoals:
   use_l2_reward: bool = False
   sigmoid_q: bool = False
   hardcode_r: float = None
-  shift_learned_reward: bool = False 
+  shift_learned_reward: bool = False
+
+  val_interval: int = 2 # 100
 
 def target_entropy_from_env_spec(
     spec,

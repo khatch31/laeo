@@ -76,7 +76,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       random_key,
       networks,
       dataset,
-      # val_dataset,
+      val_dataset,
       replay_client = None,
       counter = None,
       expert_goals=None, ###===### ###---###
@@ -95,7 +95,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
         q_optimizer=q_optimizer,
         # r_optimizer=r_optimizer,
         iterator=dataset,
-        # val_iterator=val_dataset,
+        val_iterator=val_dataset,
         counter=counter,
         logger=self._logger_fn(),
         obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,
@@ -117,24 +117,39 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
                                                     device='cpu')
     if self._config.use_random_actor:
       # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
-      # ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
-      ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
+      ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
+      # ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
     else:
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
-      # ACTOR = contrastive_utils.NoGoalActor
-      ACTOR = contrastive_utils.ZeroGoalActor
+      ACTOR = contrastive_utils.NoGoalActor
+      # ACTOR = contrastive_utils.ZeroGoalActor
     return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu')
 
   def make_replay_tables(
       self,
       environment_spec,
+      n_episodes=None,
   ):
     """Create tables to insert data into."""
     samples_per_insert_tolerance = (
         self._config.samples_per_insert_tolerance_rate
         * self._config.samples_per_insert)
-    min_replay_traj = self._config.min_replay_size  // self._config.max_episode_steps  # pylint: disable=line-too-long
-    max_replay_traj = self._config.max_replay_size  // self._config.max_episode_steps  # pylint: disable=line-too-long
+
+    if n_episodes is None:
+        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+        max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    else:
+        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps
+        max_replay_traj = n_episodes
+
+        min_replay_traj += 100
+        max_replay_traj += 100
+    # min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    # max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+
+    print("\nmin_replay_traj:", min_replay_traj)
+    print("max_replay_traj:", max_replay_traj, "\n")
+
     error_buffer = min_replay_traj * samples_per_insert_tolerance
     limiter = rate_limiters.SampleToInsertRatio(
         min_size_to_sample=min_replay_traj,

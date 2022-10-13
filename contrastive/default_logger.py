@@ -11,7 +11,9 @@ from acme.utils.loggers import tf_summary
 
 import os
 
-from contrastive.wandb_logger import WANDBLoggerLabelWrapper
+from contrastive.wandb_logger import WANDBLoggerLabelWrapper, WANDBLogger
+
+from copy import deepcopy
 
 
 def make_default_logger(
@@ -52,9 +54,44 @@ def make_default_logger(
     loggers.append(csv_logger)
     loggers.append(tf_summary.TFSummaryLogger(os.path.join(logdir, "tf_logs"), label=label))
 
+    # new_wandblogger = WANDBLogger(os.path.join(deepcopy(wandblogger["logdir"]), label),
+    #                                deepcopy(wandblogger["params"]),
+    #                                deepcopy(wandblogger["group_name"]) + f"_{label}",
+    #                                deepcopy(wandblogger["name"]),
+    #                                deepcopy(wandblogger["project"]),
+    #                                label=label)
+    # loggers.append(new_wandblogger)
+
     if wandblogger is not None:
-        wandbwrapper = WANDBLoggerLabelWrapper(wandblogger, label)
-        loggers.append(wandbwrapper)
+    #     print(f"\n\n\n\nwandblogger: {label}\n\n\n")
+    #
+    #     # logdir = "/iris/u/khatch/contrastive_rl/results/trash_results/offline_fetch_push-goals-no-noise/learner_goals/nonoise_collect_entropy-bc0.5_b1024/seed_0"
+    #     # variant = {}
+    #     # group_name = "nonoise_collect_entropy-bc0.5_b1024"
+    #     # name = "seed_0"
+    #     # project = "trash_results"
+    #
+    #     # new_wandblogger = WANDBLogger(logdir,
+    #     #                           variant,
+    #     #                           group_name,
+    #     #                           name,
+    #     #                           project)
+    #
+    #     # new_wandblogger = WANDBLogger(wandblogger["logdir"],
+    #     #                               wandblogger["params"],
+    #     #                               wandblogger["group_name"],
+    #     #                               wandblogger["name"],
+    #     #                               wandblogger["project"])
+        # new_wandblogger = WANDBLogger(deepcopy(wandblogger["logdir"]),
+        #                               deepcopy(wandblogger["params"]),
+        #                               deepcopy(wandblogger["group_name"]),
+        #                               deepcopy(wandblogger["name"]),
+        #                               deepcopy(wandblogger["project"]))
+    #     # loggers.append(WANDBLoggerLabelWrapper(new_wandblogger, label))
+    #
+        if label == "evaluator":
+            wandbwrapper = WANDBLoggerLabelWrapper(wandblogger, label)
+            loggers.append(wandbwrapper)
 
   # Dispatch to all writers and filter Nones and by time.
   logger = aggregators.Dispatcher(loggers, serialize_fn)

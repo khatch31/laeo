@@ -56,6 +56,10 @@ import dill
 
 from contrastive.wandb_logger import WANDBLogger
 
+# from mujoco_py import GlfwContext
+# # GlfwContext(offscreen = True)
+# GlfwContext(offscreen = False)
+
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
@@ -138,6 +142,9 @@ def get_program(params):
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
+  # def env_factory_fn(seed):
+  #     return contrastive_utils.make_environment(env_name, config.start_index, config.end_index, seed)
+  # env_factory = env_factory_fn
 
   env_factory_no_extra = lambda seed: env_factory(seed)[0]  # Remove obs_dim.
   environment, obs_dim = get_env(env_name, config.start_index,
@@ -158,11 +165,11 @@ def get_program(params):
       use_td=config.use_td)
 
   expert_goals = environment.get_expert_goals()
-  print("\nexpert_goals:\n", expert_goals)
-  print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
-  print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
-  if "image" in env_name and "push" in env_name:
-      print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
+  # print("\nexpert_goals:\n", expert_goals)
+  # print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
+  # print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
+  # if "image" in env_name and "push" in env_name:
+  #     print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
   algo = "learner_goals"
   if FLAGS.use_gcbc:
@@ -192,6 +199,12 @@ def get_program(params):
                             name,
                             FLAGS.project)
 
+  # wandblogger_info = dict(logdir=os.path.join(logdir, "wandb_logs"),
+  #                         params=params,
+  #                         group_name=group_name,
+  #                         name=name,
+  #                         project=FLAGS.project)
+
   if FLAGS.replay_buffer_load_dir is not None:
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
@@ -220,6 +233,7 @@ def get_program(params):
       expert_goals=expert_goals,
       logdir=logdir,
       wandblogger=wandblogger,
+      # wandblogger=wandblogger_info,
       save_data=FLAGS.save_data,
       save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),

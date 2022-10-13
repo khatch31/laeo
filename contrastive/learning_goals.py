@@ -44,8 +44,10 @@ class TrainingState(NamedTuple):
   q_params: networks_lib.Params
   target_q_params: networks_lib.Params
   key: networks_lib.PRNGKey
+  steps: int
   alpha_optimizer_state: Optional[optax.OptState] = None
   alpha_params: Optional[networks_lib.Params] = None
+
 
 # class TrainingState(NamedTuple):
 #   """Contains training state for the learner."""
@@ -74,7 +76,7 @@ class ContrastiveLearnerGoals(acme.Learner):
       q_optimizer,
       # r_optimizer,
       iterator,
-      # val_iterator,
+      val_iterator,
       counter,
       logger,
       obs_to_goal,
@@ -110,6 +112,10 @@ class ContrastiveLearnerGoals(acme.Learner):
     print("\nadaptive_entropy_coefficient:", adaptive_entropy_coefficient)
     print("self._num_sgd_steps_per_step:", self._num_sgd_steps_per_step)
     print()
+
+    # self.val_critic_loss = 0
+    # self.val_critic_metrics = {}
+    # self.val_actor_loss = 0
 
     if adaptive_entropy_coefficient:
       # alpha is the temperature parameter that determines the relative
@@ -200,10 +206,12 @@ class ContrastiveLearnerGoals(acme.Learner):
         actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
         new_actor_obs = jnp.concatenate([state, actor_goal], axis=1)
         # hcb.id_print(new_actor_obs, what="\n\nnew_actor_obs")
-        dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
-        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
+        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
+        dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
         log_prob = networks.log_prob(dist_params, transitions.action)
         actor_loss = -1.0 * jnp.mean(log_prob)
+
+        metrics = {}
       else:
         state = obs[:, :config.obs_dim]
         # goal = obs[:, config.obs_dim:]
@@ -239,8 +247,8 @@ class ContrastiveLearnerGoals(acme.Learner):
         new_actor_obs = jnp.concatenate([new_state, new_actor_goal], axis=1)
         # hcb.id_print(new_actor_obs[0], what="new_actor_obs")
         # hcb.id_print(new_actor_obs.shape, what="new_actor_obs.shape")
-        dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
-        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
+        # dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
+        dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
 
         action = networks.sample(dist_params, key)
         log_prob = networks.log_prob(dist_params, action)
@@ -286,22 +294,25 @@ class ContrastiveLearnerGoals(acme.Learner):
             orig_action = jnp.concatenate([orig_action, orig_action], axis=0)
 
           bc_loss = -1.0 * networks.log_prob(dist_params, orig_action)
+          metrics = {"bc_loss": jnp.mean(bc_loss),
+                     "actor_loss_nobc": jnp.mean(actor_loss)}
           actor_loss = (config.bc_coef * bc_loss
                         + (1 - config.bc_coef) * actor_loss)
 
-      return jnp.mean(actor_loss)
+      return jnp.mean(actor_loss), metrics
 
     alpha_grad = jax.value_and_grad(alpha_loss)
     critic_grad = jax.value_and_grad(critic_loss, has_aux=True)
-    actor_grad = jax.value_and_grad(actor_loss)
+    # actor_grad = jax.value_and_grad(actor_loss)
+    actor_grad = jax.value_and_grad(actor_loss, has_aux=True)
 
     def update_step(
         state,
         all_transitions,
     ):
 
-      # transitions, val_transitions = all_transitions
-      transitions = all_transitions
+      transitions, val_transitions = all_transitions
+      # transitions = all_transitions
       key, key_alpha, key_critic, key_actor = jax.random.split(state.key, 4)
 
       if adaptive_entropy_coefficient:
@@ -317,7 +328,9 @@ class ContrastiveLearnerGoals(acme.Learner):
             state.q_params, state.policy_params, state.target_q_params,
             transitions, key_critic)
 
-      actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
+      # actor_loss, actor_grads = actor_grad(state.policy_params, state.q_params,
+      #                                      alpha, transitions, key_actor, expert_goals)
+      (actor_loss, actor_metrics), actor_grads = actor_grad(state.policy_params, state.q_params,
                                            alpha, transitions, key_actor, expert_goals)
 
       # Apply policy gradients
@@ -342,11 +355,49 @@ class ContrastiveLearnerGoals(acme.Learner):
             lambda x, y: x * (1 - config.tau) + y * config.tau,
             state.target_q_params, q_params)
         metrics = critic_metrics
+        metrics.update(actor_metrics)
 
+      # def val_metrics():
+      #     (val_critic_loss, val_critic_metrics), _ = critic_grad(
+      #         state.q_params, state.policy_params, state.target_q_params,
+      #         val_transitions, key_critic)
+      #
+      #     val_actor_loss, _ = actor_grad(state.policy_params, state.q_params,
+      #         alpha, val_transitions, key_actor, expert_goals)
+      #
+      #     return val_critic_loss, val_critic_metrics, val_actor_loss
+      #
+      # self.val_critic_loss = critic_loss
+      # self.val_critic_metrics = critic_metrics
+      # self.val_actor_loss = actor_loss
+      #
+      # val_critic_loss, val_critic_metrics, val_actor_loss = jax.lax.cond(
+      #     state.steps % config.val_interval == 0,
+      #     lambda _: val_metrics(),
+      #     lambda _: (self.val_critic_loss, self.val_critic_metrics, self.val_actor_loss),
+      #     operand=None)
+      #
+      # self.val_critic_loss = val_critic_loss
+      # self.val_critic_metrics = val_critic_metrics
+      # self.val_actor_loss = val_actor_loss
       metrics.update({
           'critic_loss': critic_loss,
           'actor_loss': actor_loss,
       })
+
+      (val_critic_loss, val_critic_metrics), _ = critic_grad(
+          state.q_params, state.policy_params, state.target_q_params,
+          val_transitions, key_critic)
+
+      (val_actor_loss, val_actor_metrics), _ = actor_grad(state.policy_params, state.q_params,
+          alpha, val_transitions, key_actor, expert_goals)
+
+      metrics.update({
+          'val_critic_loss': val_critic_loss,
+          'val_actor_loss': val_actor_loss,
+      })
+      metrics.update({"val_" + key:val for key, val in val_critic_metrics.items()})
+      metrics.update({"val_" + key:val for key, val in val_actor_metrics.items()})
 
       new_state = TrainingState(
           policy_optimizer_state=policy_optimizer_state,
@@ -355,6 +406,7 @@ class ContrastiveLearnerGoals(acme.Learner):
           q_params=q_params,
           target_q_params=new_target_q_params,
           key=key,
+          steps=state.steps + 1,
       )
       if adaptive_entropy_coefficient:
         # Apply alpha gradients
@@ -381,7 +433,7 @@ class ContrastiveLearnerGoals(acme.Learner):
 
     # Iterator on demonstration transitions.
     self._iterator = iterator
-    # self._val_iterator = val_iterator
+    self._val_iterator = val_iterator
 
     update_step = utils.process_multiple_batches(update_step,
                                                  config.num_sgd_steps_per_step)
@@ -407,7 +459,8 @@ class ContrastiveLearnerGoals(acme.Learner):
           policy_params=policy_params,
           q_params=q_params,
           target_q_params=q_params,
-          key=key)
+          key=key,
+          steps=0)
 
       if adaptive_entropy_coefficient:
         state = state._replace(alpha_optimizer_state=alpha_optimizer_state,
@@ -427,11 +480,11 @@ class ContrastiveLearnerGoals(acme.Learner):
       sample = next(self._iterator)
       transitions = types.Transition(*sample.data)
 
-      # val_sample = next(self._val_iterator)
-      # val_transitions = types.Transition(*val_sample.data)
+      val_sample = next(self._val_iterator)
+      val_transitions = types.Transition(*val_sample.data)
 
-      # self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
-      self._state, metrics = self._update_step(self._state, transitions)
+      self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
+      # self._state, metrics = self._update_step(self._state, transitions)
 
     # Compute elapsed time.
     timestamp = time.time()

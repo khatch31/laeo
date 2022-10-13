@@ -82,6 +82,8 @@ flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
 
+flags.DEFINE_integer('seed', 0, 'description.')
+
 
 @functools.lru_cache()
 def get_env(env_name, start_index, end_index):
@@ -212,6 +214,8 @@ def main(_):
 
   params["bc_coef"] = FLAGS.bc_coef
   params["twin_q"] = FLAGS.twin_q
+
+  params["seed"] = FLAGS.seed
 
   if 'ant_' in env_name:
     params['end_index'] = 2
