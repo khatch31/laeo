@@ -68,8 +68,6 @@ def render_data(basedir, headdir, colors, occluded, red, seed=0):
         # writer = [] ###@@@###
         images = np.zeros((episode["observation"].shape[0], 64 * 64 * 3), dtype=np.uint8)
         for t in range(episode["observation"].shape[0]):
-
-
             sim_state = MjSimState(time=episode["sim_state"][t]["time"],
                                qpos=episode["sim_state"][t]["qpos"],
                                qvel=episode["sim_state"][t]["qvel"],

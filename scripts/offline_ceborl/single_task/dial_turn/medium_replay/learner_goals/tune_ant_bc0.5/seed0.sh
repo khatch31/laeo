@@ -26,7 +26,8 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
 echo $SLURM_JOB_GPUS
 export GPUS=$SLURM_JOB_GPUS
-export MUJOCO_GL="egl"
+# export MUJOCO_GL="egl"
+export MUJOCO_GL="osmesa"
 export XLA_PYTHON_CLIENT_MEM_FRACTION=.7
 
 which python3

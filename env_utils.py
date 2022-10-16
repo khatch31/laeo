@@ -23,7 +23,7 @@ import os
 import ant_env
 import fetch_envs
 import gym
-import sys; sys.path.append("/iris/u/khatch/metaworld_door")
+# import sys; sys.path.append("/iris/u/khatch/metaworld_door")
 import metaworld
 import numpy as np
 import point_env

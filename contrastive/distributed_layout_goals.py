@@ -271,8 +271,6 @@ class DistributedLayoutGoals:
                         assert episode["image"][idx].shape[0] == self._obs_dim # Should be the same regardless of slicing, goal image stored seperately in data
                         expert_goals_list.append(episode["image"][idx][:self._obs_dim])#.astype(np.float32))
                     else:
-                        print("\nsuccess_idxs:", success_idxs)
-                        print("len(expert_goals_list):", len(expert_goals_list))
                         expert_goals_list.append(episode["observation"][idx][:self._obs_dim])
 
 
@@ -300,48 +298,28 @@ class DistributedLayoutGoals:
                 if ep_idx in val_ep_idxs: # Add to val replay buffer
                     val_examples_added += 1
                     if t == 0:
-                        # print("1")
                         assert episode["step_type"][t] == dm_env.StepType.FIRST
                         val_adder.add_first(ts)  # pytype: disable=attribute-error
-                        # print("2")
                     else:
-                        # print("3")
-                        assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
-                        val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
-                        # print("4")
-                else: # Add to train replay buffer
-                    train_examples_added += 1
-                    if t == 0:
-                        # print("5")
-                        assert episode["step_type"][t] == dm_env.StepType.FIRST
-                        adder.add_first(ts)  # pytype: disable=attribute-error
-                        # print("6")
-                    else:
-                        # print("7")
                         if t == episode["observation"].shape[0] - 1:
-                            # print("assert:", episode["step_type"][t] == dm_env.StepType.LAST)
                             assert episode["step_type"][t] == dm_env.StepType.LAST
                         else:
                             assert episode["step_type"][t] == dm_env.StepType.MID
-                            # print("assert:", episode["step_type"][t] == dm_env.StepType.MID)
-                        # print(f"\nepisode['action'][t].dtype: {episode['action'][t].dtype}")
-                        # print(f"ts.step_type.dtype: {ts.step_type.dtype}")
-                        # print(f"ts.reward.dtype: {ts.reward.dtype}")
-                        # print(f"ts.discount.dtype: {ts.discount.dtype}")
-                        # print(f"ts.observation.dtype: {ts.observation.dtype}")
-                        # print("8")
-                        # print("t:", t)
-                        # print(episode['action'][t])
-                        # print("len(expert_goals_list):", len(expert_goals_list))
-                        # print(f"ts.step_type.shape: {ts.step_type.shape}")
-                        # print(f"ts.step_type: {ts.step_type}")
-                        # print(f"ts.reward.shape: {ts.reward.shape}")
-                        # print(f"ts.discount.shape: {ts.discount.shape}")
-                        # print(f"ts.observation.shape: {ts.observation.shape}")
-                        # print("episode_file:", episode_file)
+
+                        val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                else: # Add to train replay buffer
+                    train_examples_added += 1
+                    if t == 0:
+                        assert episode["step_type"][t] == dm_env.StepType.FIRST
+                        adder.add_first(ts)  # pytype: disable=attribute-error
+                    else:
+                        if t == episode["observation"].shape[0] - 1:
+                            assert episode["step_type"][t] == dm_env.StepType.LAST
+                        else:
+                            assert episode["step_type"][t] == dm_env.StepType.MID
+
                         adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
-                        # print("9")
-                # print("After")
+
 
         print(f"\n\nval_examples_added: {val_examples_added}, train_examples_added: {train_examples_added}")
         # assert len(val_ep_idxs) == val_eps_added
@@ -354,6 +332,8 @@ class DistributedLayoutGoals:
             idxs = idxs[:N_EXAMPLES]
             expert_goals = [expert_goals_list[i] for i in idxs]
             expert_goals = np.stack(expert_goals)
+            os.makedirs(os.path.join(os.getcwd(), "debug_images"), exist_ok=True)
+            np.save(os.path.join(os.getcwd(), "debug_images", "expert_goals"), expert_goals)
 
 
     iterator = self._builder.make_dataset_iterator(replay)

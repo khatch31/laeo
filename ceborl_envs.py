@@ -6,28 +6,27 @@ import d4rl  # pylint: disable=unused-import
 # import gin
 import gym
 
-import sys
-# sys.path.append("/iris/u/khatch/anaconda3/envs/combo/lib/python3.7/site-packages")
-sys.path.append("/iris/u/khatch/metaworld_combo/")
-from metaworld_combo.envs.mujoco.sawyer_xyz.v2.sawyer_drawer_open_v2 import SawyerDrawerOpenEnvV2
-from metaworld_combo.envs.mujoco.sawyer_xyz.v2.sawyer_door_v2 import SawyerDoorEnvV2
+# import sys
+# # sys.path.append("/iris/u/khatch/anaconda3/envs/combo/lib/python3.7/site-packages")
+# sys.path.append("/iris/u/khatch/metaworld_combo/")
+# from metaworld_combo.envs.mujoco.sawyer_xyz.v2.sawyer_drawer_open_v2 import SawyerDrawerOpenEnvV2
+# from metaworld_combo.envs.mujoco.sawyer_xyz.v2.sawyer_door_v2 import SawyerDoorEnvV2
+#
+# sys.path.append("/iris/u/khatch/metaworld_door")
+# # sys.path.insert(0, "/iris/u/khatch/metaworld_door")
+# import inspect
+# import metaworld
+# # from importlib.machinery import SourceFileLoader
+# # metaworld = SourceFileLoader("metaworld", "/iris/u/khatch/metaworld_door/metaworld/__init__.py").load_module()
+# print("inspect.getfile(metaworld):", inspect.getfile(metaworld))
+#
+# from metaworld.envs.mujoco.sawyer_xyz.v2 import SawyerMultitaskDoorEnvV2, SawyerMultitaskDoorCloseEnvV2, SawyerMultitaskDrawerOpenEnvV2, SawyerMultitaskDrawerCloseEnvV2
+# from metaworld.envs.mujoco.sawyer_xyz.v2.sawyer_multimodal_envs import SawyerMultimodalDrawerOpenEnvV2, SawyerMultimodalDoorOpenEnvV2, SawyerMultimodalLeverPullEnvV2, SawyerMultimodalPlateSlideEnvV2, SawyerDialTurnEnvV2
+#
+# from metaworld.envs.mujoco.sawyer_xyz.v2.sawyer_drawer_door_env import SawyerDrawerDoorDrawerOpenEnvV2, SawyerDrawerDoorDoorOpenEnvV2
 
-sys.path.append("/iris/u/khatch/metaworld_door")
-# sys.path.insert(0, "/iris/u/khatch/metaworld_door")
-import inspect
-import metaworld
-# from importlib.machinery import SourceFileLoader
-# metaworld = SourceFileLoader("metaworld", "/iris/u/khatch/metaworld_door/metaworld/__init__.py").load_module()
-print("inspect.getfile(metaworld):", inspect.getfile(metaworld))
 
-from metaworld.envs.mujoco.sawyer_xyz.v2 import SawyerMultitaskDoorEnvV2, SawyerMultitaskDoorCloseEnvV2, SawyerMultitaskDrawerOpenEnvV2, SawyerMultitaskDrawerCloseEnvV2
-from metaworld.envs.mujoco.sawyer_xyz.v2.sawyer_multimodal_envs import SawyerMultimodalDrawerOpenEnvV2, SawyerMultimodalDoorOpenEnvV2, SawyerMultimodalLeverPullEnvV2, SawyerMultimodalPlateSlideEnvV2, SawyerDialTurnEnvV2
-
-from metaworld.envs.mujoco.sawyer_xyz.v2.sawyer_drawer_door_env import SawyerDrawerDoorDrawerOpenEnvV2, SawyerDrawerDoorDoorOpenEnvV2
-
-# sys.path.append("/iris/u/khatch/roboverse")
-# import roboverse
-
+from metaworld.envs.mujoco.sawyer_xyz.v2.sawyer_dial_turn_v2 import SawyerDialTurnEnvV2
 
 
 import mujoco_py
@@ -68,6 +67,18 @@ def get_env(task_name, image_obs=False):
     # default_action_repeat = 4
     # task_name = env_name.split(":")[-1]
     # elif "sawyer:multimodal" in env_name or "sawyer:drawer_door" in env_name:
+
+
+
+
+    # debug_env = SawyerDialTurnEnvV2()
+    # viewer = mujoco_py.MjRenderContextOffscreen(debug_env.sim, device_id=-1)
+    # image = debug_env.render("rgb_array")
+    # print("debug_env:", debug_env)
+    # print("viewer:", viewer)
+    # print("image.shape:", image.shape)
+
+
     gym_env = SawyerMultimodalEnv(task_name, size=(64, 64))
     # default_max_episode_steps = 50
     info_aggr_fns = {"success":lambda x:float(min(np.sum(x), 1))}
@@ -119,19 +130,18 @@ class SawyerCOMBOBase:
         state = self._env.reset()
         return state
 
-    def get_image(self, width=84, height=84, camera_name=None):
-        return self.sim.render(
-            width=width,
-            height=height,
-            camera_name=camera_name,
-        )
+    # def get_image(self, width=84, height=84, camera_name=None):
+    #     return self.sim.render(
+    #         width=width,
+    #         height=height,
+    #         camera_name=camera_name,
+    #     )
 
     # def render(self, mode='rgb_array', width = 128, height = 128):
     def render(self, mode='rgb_array', **kwargs):
         # self.viewer.render(width=width, height=width)
         # self.viewer.render(width=self.size[0], height=self.size[1])
-        # img = self.viewer.read_pixels(self.size[0], self.size[1], depth=False)
-        import pdb; pdb.set_trace()
+        img = self.viewer.read_pixels(self.size[0], self.size[1], depth=False)
         img = img[::-1]
         return img
 
@@ -182,19 +192,22 @@ class SawyerMultimodalEnv(SawyerCOMBOBase):
             raise ValueError(f"Unsupported task: \"{task}\".")
 
     def _setup_viewer(self):
-        # #Setup camera in environment
-        # # self.viewer = mujoco_py.MjRenderContextOffscreen(self._env.sim, -1)
+        #Setup camera in environment
+        # self.viewer = mujoco_py.MjRenderContextOffscreen(self._env.sim, -1)
         # self.viewer = mujoco_py.MjRenderContextOffscreen(self._env.sim, 0)
-        #
-        # # # Original
-        # self.viewer.cam.elevation = -45
-        # self.viewer.cam.azimuth = 160
-        # self.viewer.cam.distance = 1.75
-        # self.viewer.cam.lookat[0] = 0.075
-        # self.viewer.cam.lookat[1] = 0.75
-        # self.viewer.cam.lookat[2] = 0.15
-        pass
 
+        import pdb; pdb.set_trace()
+        import inspect
+        inspect.getfile(mujoco_py)
+        inspect.getfile(metaworld)
+        self.viewer = mujoco_py.MjRenderContextOffscreen(self._env.sim, device_id=-1)
+        # # Original
+        self.viewer.cam.elevation = -45
+        self.viewer.cam.azimuth = 160
+        self.viewer.cam.distance = 1.75
+        self.viewer.cam.lookat[0] = 0.075
+        self.viewer.cam.lookat[1] = 0.75
+        self.viewer.cam.lookat[2] = 0.15
 
     def _get_blank_info(self):
         if self._env._target_pos is None:
@@ -269,15 +282,17 @@ class BlankGoalEnv(WrapperEnv):
         low = np.concatenate((self._env.observation_space.low, np.zeros_like(self._env.observation_space.low)))
         high = np.concatenate((self._env.observation_space.high, np.zeros_like(self._env.observation_space.high)))
         new_observation_space = gym.spaces.Box(
-            low=low,
-            high=high,
+            low=low[:42], ###$$$###
+            high=high[:42],
             dtype=np.float32)
         return new_observation_space
 
     def reset(self, *args, **kwargs):
-        obs = self._env.reset(*args, **kwargs)
-        obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
-        return obs
+        # obs = self._env.reset(*args, **kwargs)
+        # obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
+        # return obs
+        ###$$$###
+        return self._env.observation_space.sample()
 
     def step(self, *args, **kwargs):
         obs, reward, done, info = self._env.step(*args, **kwargs)

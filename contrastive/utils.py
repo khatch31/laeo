@@ -417,8 +417,7 @@ class InitiallyRandomNoGoalActor(actors.GenericActor):
             assert observation.shape[0] % 2 == 0
             new_obs = observation.copy()
             new_obs[self._obs_dim:] = 0
-            # print("\n\nnew_obs.shape:", new_obs.shape)
-            # action, self._state = self._policy(self._params, new_obs, self._state)
+
             action, self._state = self._policy(self._params, new_obs[:self._obs_dim], self._state)
         return utils.to_numpy(action)
 

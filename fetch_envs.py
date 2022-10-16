@@ -192,6 +192,7 @@ class FetchReachImage(reach.FetchReachEnv):
     done = False
     r = float(dist < 0.05)
     info = {}
+    # info = dict(state=s)
     img = self.observation(s)
     return np.concatenate([img, self._goal_img]), r, done, info
 
@@ -211,6 +212,8 @@ class FetchReachImage(reach.FetchReachEnv):
     self.viewer.cam.distance = 1.4
     self.viewer.cam.azimuth = 120
     self.viewer.cam.elevation = -30
+
+
 
 
 class FetchReachImageGoals(FetchReachImage):
@@ -393,6 +396,7 @@ class FetchPushImageGoalsRED(FetchPushImageGoals):
 # Attached are some example images. Once the color is set, it stays the same until it is set again; you don't need to set the color after each env.step.
 class FetchPushImageGoalsOccluded(FetchPushImageGoals):
     def _viewer_setup(self):
+
       super(FetchPushImage, self)._viewer_setup()
       # if self._camera_name == 'camera1':
       #   self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])

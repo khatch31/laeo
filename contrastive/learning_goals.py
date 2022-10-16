@@ -310,7 +310,6 @@ class ContrastiveLearnerGoals(acme.Learner):
         state,
         all_transitions,
     ):
-
       transitions, val_transitions = all_transitions
       # transitions = all_transitions
       key, key_alpha, key_critic, key_actor = jax.random.split(state.key, 4)

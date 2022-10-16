@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --job-name="bc0.5_b1024"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=256G
+#SBATCH --mem=300G
 
 
 which python3

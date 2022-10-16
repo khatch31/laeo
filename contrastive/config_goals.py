@@ -69,7 +69,7 @@ class ContrastiveConfigGoals:
   use_gcbc: bool = False
   use_image_obs: bool = False
   random_goals: float = 0.5
-  jit: bool = False
+  jit: bool = True
   add_mc_to_td: bool = False
   resample_neg_actions: bool = False
   bc_coef: float = 0.0

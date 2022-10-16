@@ -123,7 +123,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
       ACTOR = contrastive_utils.NoGoalActor
       # ACTOR = contrastive_utils.ZeroGoalActor
-    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu')
+    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=True)
 
   def make_replay_tables(
       self,
