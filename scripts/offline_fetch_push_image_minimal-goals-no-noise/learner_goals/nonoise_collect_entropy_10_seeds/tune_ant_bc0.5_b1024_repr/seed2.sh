@@ -38,11 +38,11 @@ python3 -u gpu_test.py
 
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals12 \
---env_name=offline_fetch_push_image-goals-no-noise \
---seed=1 \
---description=nonoise_collect_entropy_10-bc0.5_b1024 \
---use_gcbc=True \
+--project=contrastive_rl_goals13 \
+--env_name=offline_fetch_push_image_minimal-goals-no-noise \
+--seed=2 \
+--description=nonoise_collect_entropy_10-bc0.5_b1024_repr \
+--repr_norm=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
 --repr_dim=256 \
@@ -57,5 +57,6 @@ python3 -u lp_contrastive_goals.py \
 --bc_coef=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
 --data_load_dir=/iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds
+# --data_load_dir=/iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds
 
-# --project=contrastive_rl_goals12 \
+# --project=contrastive_rl_goals13 \

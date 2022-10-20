@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=iris
+#SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="bc0.5_b1024"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=300G
 
 
 which python3
@@ -39,9 +39,10 @@ python3 -u gpu_test.py
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals13 \
---env_name=offline_fetch_push-goals-no-noise \
+--env_name=offline_fetch_push_image_determ-goals-no-noise \
 --seed=0 \
---description=nonoise_collect_entropy_10-bc0.5_b1024 \
+--description=nonoise_collect_entropy_10-bc0.5_b1024_repr \
+--repr_norm=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
 --repr_dim=256 \

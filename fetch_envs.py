@@ -21,6 +21,16 @@ from gym.envs.robotics.fetch import reach
 import numpy as np
 
 
+
+class ObsDictWrapper:
+    def __init__(self, env):
+        self._env = env
+
+    def __getattr__(self, attr):
+        if attr == '_wrapped_env':
+            raise AttributeError()
+        return getattr(self._env, attr)
+
 class FetchReachEnv(reach.FetchReachEnv):
   """Wrapper for the FetchReach environment."""
 
@@ -79,6 +89,83 @@ class FetchReachEnvGoals(FetchReachEnv):
       # return goals
       return None
 
+class FetchPushImageMinimal(push.FetchPushEnv):
+  def __init__(self, *args, **kwargs):
+    super(FetchPushImageMinimal, self).__init__()
+    # self._old_observation_space = self.observation_space
+    # self._new_observation_space = gym.spaces.Box(
+    #     low=np.full((50,), -np.inf),
+    #     high=np.full((50,), np.inf),
+    #     dtype=np.float32)
+    # self.observation_space = self._new_observation_space
+    self._old_observation_space = self.observation_space
+    self._new_observation_space = gym.spaces.Box(
+        low=np.full((64*64*6), 0),
+        high=np.full((64*64*6), 255),
+        dtype=np.uint8)
+    self.observation_space = self._new_observation_space
+    self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
+
+
+  def reset(self):
+    self.observation_space = self._old_observation_space
+    s = super(FetchPushImageMinimal, self).reset()
+    self.observation_space = self._new_observation_space
+    # return self.observation(s)
+    # dist = np.linalg.norm(block_xyz[:2] - self._goal)
+    # self._dist.append(dist)
+    # if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
+    #   print('Bad reset, recursing.')
+    #   return self.reset()
+
+    img = self.image_obs()
+    return np.concatenate([img, np.zeros_like(img)])
+
+  def step(self, action):
+    s, _, _, _ = super(FetchPushImageMinimal, self).step(action)
+    done = False
+    dist = np.linalg.norm(s['achieved_goal'] - s['desired_goal'])
+    r = float(dist < 0.05)
+    info = {}
+    # info = dict(state=self.observation(s))
+    # return self.observation(s), r, done, info
+
+    img = self.image_obs()
+    return np.concatenate([img, np.zeros_like(img)]), r, done, info
+
+  def observation(self, observation):
+    start_index = 3
+    end_index = 6
+    goal_pos_1 = observation['achieved_goal']
+    goal_pos_2 = observation['observation'][start_index:end_index]
+    assert np.all(goal_pos_1 == goal_pos_2)
+    s = observation['observation']
+    g = np.zeros_like(s)
+    g[:start_index] = observation['desired_goal']
+    g[start_index:end_index] = observation['desired_goal']
+    return np.concatenate([s, g]).astype(np.float32)
+
+  def image_obs(self):
+      self.sim.data.site_xpos[0] = 1_000_000
+      img = self.render(mode='rgb_array', height=64, width=64)
+      return img.flatten()
+
+
+class FetchPushImageMinimalGoals(FetchPushImageMinimal):
+    def __init__(self, *args, add_goal_noise=False, **kwargs):
+        self._add_goal_noise = add_goal_noise
+        super(FetchPushImageMinimalGoals, self).__init__(*args, **kwargs)
+
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.9, 0.42469975])
+        if self._add_goal_noise:
+            goal += np.random.normal(scale=0.01, size=goal.shape)
+        return goal
+
+    def get_expert_goals(self):
+        return None
+
+
 class FetchPushEnv(push.FetchPushEnv):
   """Wrapper for the FetchPush environment."""
 
@@ -103,6 +190,7 @@ class FetchPushEnv(push.FetchPushEnv):
     dist = np.linalg.norm(s['achieved_goal'] - s['desired_goal'])
     r = float(dist < 0.05)
     info = {}
+    # info = dict(state=self.observation(s))
     return self.observation(s), r, done, info
 
   def observation(self, observation):
@@ -116,8 +204,6 @@ class FetchPushEnv(push.FetchPushEnv):
     g[:start_index] = observation['desired_goal']
     g[start_index:end_index] = observation['desired_goal']
     return np.concatenate([s, g]).astype(np.float32)
-
-
 
 class FetchPushEnvGoals(FetchPushEnv):
     def __init__(self, *args, add_goal_noise=False, **kwargs):
@@ -213,9 +299,6 @@ class FetchReachImage(reach.FetchReachEnv):
     self.viewer.cam.azimuth = 120
     self.viewer.cam.elevation = -30
 
-
-
-
 class FetchReachImageGoals(FetchReachImage):
   def __init__(self, add_goal_noise=False):
       self._add_goal_noise = add_goal_noise
@@ -231,13 +314,15 @@ class FetchReachImageGoals(FetchReachImage):
   def get_expert_goals(self):
       return None
 
-
 class FetchPushImage(push.FetchPushEnv):
   """Wrapper for the FetchPush environment with image observations."""
 
-  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False):
+  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False, same_block_start_pos=False):
+    if same_block_start_pos:
+        assert not rand_y
     self._start_at_obj = start_at_obj
     self._rand_y = rand_y
+    self._same_block_start_pos = same_block_start_pos
     self._camera_name = camera
     self._dist = []
     self._dist_vec = []
@@ -249,6 +334,9 @@ class FetchPushImage(push.FetchPushEnv):
         dtype=np.uint8)
     self.observation_space = self._new_observation_space
     self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
+
+    print("self._same_block_start_pos:", self._same_block_start_pos)
+    print("self._rand_y:", self._rand_y)
 
   def reset_metrics(self):
     self._dist_vec = []
@@ -274,9 +362,11 @@ class FetchPushImage(push.FetchPushEnv):
     self.observation_space = self._old_observation_space
     s = super(FetchPushImage, self).reset()
     self.observation_space = self._new_observation_space
-    # Randomize object position
-    for _ in range(8):
-      super(FetchPushImage, self).step(np.array([-1.0, 0.0, 0.0, 0.0]))
+
+    if not self._same_block_start_pos:
+        # Randomize object position
+        for _ in range(8):
+          super(FetchPushImage, self).step(np.array([-1.0, 0.0, 0.0, 0.0]))
     object_qpos = self.sim.data.get_joint_qpos('object0:joint')
     if not self._rand_y:
       object_qpos[1] = 0.75
@@ -310,6 +400,7 @@ class FetchPushImage(push.FetchPushEnv):
     if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
       print('Bad reset, recursing.')
       return self.reset()
+
     return np.concatenate([img, self._goal_img])
 
   def step(self, action):
@@ -348,11 +439,171 @@ class FetchPushImage(push.FetchPushEnv):
     else:
       raise NotImplementedError
 
-
 class FetchPushImageGoals(FetchPushImage):
     def __init__(self, *args, add_goal_noise=False, **kwargs):
         self._add_goal_noise = add_goal_noise
         super(FetchPushImageGoals, self).__init__(*args, **kwargs)
+
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.9, 0.42469975])
+        if self._add_goal_noise:
+            goal += np.random.normal(scale=0.01, size=goal.shape)
+        return goal
+
+    def get_expert_goals(self):
+        return None
+
+class FetchPushEnv3(push.FetchPushEnv):
+  """Wrapper for the FetchPush environment with image observations."""
+
+  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False, same_block_start_pos=False):
+    if same_block_start_pos:
+        assert not rand_y
+    self._start_at_obj = start_at_obj
+    self._rand_y = rand_y
+    self._same_block_start_pos = same_block_start_pos
+    self._camera_name = camera
+    self._dist = []
+    self._dist_vec = []
+    super(FetchPushEnv3, self).__init__()
+    # self._old_observation_space = self.observation_space
+    # self._new_observation_space = gym.spaces.Box(
+    #     low=np.full((64*64*6), 0),
+    #     high=np.full((64*64*6), 255),
+    #     dtype=np.uint8)
+    # self.observation_space = self._new_observation_space
+
+    self._old_observation_space = self.observation_space
+    self._new_observation_space = gym.spaces.Box(
+        low=np.full((50,), -np.inf),
+        high=np.full((50,), np.inf),
+        dtype=np.float32)
+    self.observation_space = self._new_observation_space
+
+    self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
+
+    print("self._same_block_start_pos:", self._same_block_start_pos)
+    print("self._rand_y:", self._rand_y)
+
+  def reset_metrics(self):
+    self._dist_vec = []
+    self._dist = []
+
+  def _move_hand_to_obj(self):
+    s = super(FetchPushEnv3, self)._get_obs()
+    for _ in range(100):
+      hand = s['observation'][:3]
+      obj = s['achieved_goal'] + np.array([-0.02, 0.0, 0.0])
+      delta = obj - hand
+      if np.linalg.norm(delta) < 0.06:
+        break
+      a = np.concatenate([np.clip(delta, -1, 1), [0.0]])
+      s, _, _, _ = super(FetchPushEnv3, self).step(a)
+
+  def reset(self):
+    if self._dist:  # if len(self._dist) > 0 ...
+      self._dist_vec.append(self._dist)
+    self._dist = []
+
+    # generate the new goal image
+    self.observation_space = self._old_observation_space
+    s = super(FetchPushEnv3, self).reset()
+    self.observation_space = self._new_observation_space
+
+    if not self._same_block_start_pos:
+        # Randomize object position
+        for _ in range(8):
+          super(FetchPushEnv3, self).step(np.array([-1.0, 0.0, 0.0, 0.0]))
+    object_qpos = self.sim.data.get_joint_qpos('object0:joint')
+    if not self._rand_y:
+      object_qpos[1] = 0.75
+    self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+    self._move_hand_to_obj()
+    # self._goal_img = self.observation(s)
+    block_xyz = self.sim.data.get_joint_qpos('object0:joint')[:3]
+    if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
+      print('Bad reset, recursing.')
+      return self.reset()
+    self._goal = block_xyz[:2].copy()
+
+    self.observation_space = self._old_observation_space
+    s = super(FetchPushEnv3, self).reset()
+    self.observation_space = self._new_observation_space
+    for _ in range(8):
+      super(FetchPushEnv3, self).step(np.array([-1.0, 0.0, 0.0, 0.0]))
+    object_qpos = self.sim.data.get_joint_qpos('object0:joint')
+    object_qpos[:2] = np.array([1.15, 0.75])
+    self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+    if self._start_at_obj:
+      self._move_hand_to_obj()
+    else:
+      for _ in range(5):
+        super(FetchPushEnv3, self).step(self.action_space.sample())
+
+    block_xyz = self.sim.data.get_joint_qpos('object0:joint')[:3].copy()
+    # img = self.observation(s)
+    dist = np.linalg.norm(block_xyz[:2] - self._goal)
+    self._dist.append(dist)
+    if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
+      print('Bad reset, recursing.')
+      return self.reset()
+
+    # return np.concatenate([img, self._goal_img])
+    return self.state_observation(s)
+
+  def step(self, action):
+    s, _, _, _ = super(FetchPushEnv3, self).step(action)
+    block_xy = self.sim.data.get_joint_qpos('object0:joint')[:2]
+    dist = np.linalg.norm(block_xy - self._goal)
+    self._dist.append(dist)
+    done = False
+    r = float(dist < 0.05)  # Taken from the original task code.
+    info = {}
+    # img = self.observation(s)
+    # return np.concatenate([img, self._goal_img]), r, done, info
+    return self.state_observation(s), r, done, info
+
+  def observation(self, observation):
+    self.sim.data.site_xpos[0] = 1_000_000
+    img = self.render(mode='rgb_array', height=64, width=64)
+    return img.flatten()
+
+  def _viewer_setup(self):
+    super(FetchPushEnv3, self)._viewer_setup()
+    if self._camera_name == 'camera1':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 180
+      self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera2':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.65
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera3':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
+    else:
+      raise NotImplementedError
+
+  def state_observation(self, observation):
+    start_index = 3
+    end_index = 6
+    goal_pos_1 = observation['achieved_goal']
+    goal_pos_2 = observation['observation'][start_index:end_index]
+    assert np.all(goal_pos_1 == goal_pos_2)
+    s = observation['observation']
+    g = np.zeros_like(s)
+    g[:start_index] = observation['desired_goal']
+    g[start_index:end_index] = observation['desired_goal']
+    return np.concatenate([s, g]).astype(np.float32)
+
+class FetchPushEnv3Goals(FetchPushEnv3):
+    def __init__(self, *args, add_goal_noise=False, **kwargs):
+        self._add_goal_noise = add_goal_noise
+        super(FetchPushEnv3Goals, self).__init__(*args, **kwargs)
 
     def _sample_goal(self):
         goal = np.array([1.4, 0.9, 0.42469975])
@@ -429,3 +680,229 @@ class FetchPushImageGoalsOccluded(FetchPushImageGoals):
 # img = env.render(mode='rgb_array', height=1024, width=1024)
 # plt.imshow(img)
 # plt.show()
+
+"""
+class FetchPushImageMinimal(push.FetchPushEnv):
+     def __init__(self):
+        super(FetchPushImageMinimal, self).__init__()
+        # self._old_observation_space = self.observation_space
+        # self._new_observation_space = gym.spaces.Box(
+        #     low=np.full((50,), -np.inf),
+        #     high=np.full((50,), np.inf),
+        #     dtype=np.float32)
+        # self.observation_space = self._new_observation_space
+
+        self._old_observation_space = self.observation_space
+        self._new_observation_space = gym.spaces.Box(
+            low=np.full((64*64*6), 0),
+            high=np.full((64*64*6), 255),
+            dtype=np.uint8)
+        self.observation_space = self._new_observation_space
+        self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
+
+    def reset_metrics(self):
+      self._dist_vec = []
+      self._dist = []
+
+     def reset(self):
+        if self._dist:  # if len(self._dist) > 0 ...
+          self._dist_vec.append(self._dist)
+        self._dist = []
+
+        self.observation_space = self._old_observation_space
+        s = super(FetchPushImageMinimal, self).reset()
+        self.observation_space = self._new_observation_space
+
+        self._goal_img = self.observation(s)
+
+        block_xyz = self.sim.data.get_joint_qpos('object0:joint')[:3].copy()
+        img = self.observation(s)
+        dist = np.linalg.norm(block_xyz[:2] - self._goal)
+        self._dist.append(dist)
+        if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
+          print('Bad reset, recursing.')
+          return self.reset()
+
+        return np.concatenate([img, self._goal_img])
+
+
+
+     def step(self, action):
+        s, _, _, _ = super(FetchPushImageMinimal, self).step(action)
+        done = False
+        dist = np.linalg.norm(s['achieved_goal'] - s['desired_goal'])
+        r = float(dist < 0.05)
+        info = {}
+        # info = dict(state=self.observation(s))
+        return self.observation(s), r, done, info
+
+     def observation(self, observation):
+        start_index = 3
+        end_index = 6
+        goal_pos_1 = observation['achieved_goal']
+        goal_pos_2 = observation['observation'][start_index:end_index]
+        assert np.all(goal_pos_1 == goal_pos_2)
+        s = observation['observation']
+        g = np.zeros_like(s)
+        g[:start_index] = observation['desired_goal']
+        g[start_index:end_index] = observation['desired_goal']
+        return np.concatenate([s, g]).astype(np.float32)
+
+class FetchPushEnv2(push.FetchPushEnv):
+  Wrapper for the FetchPush environment with image observations.
+
+  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False, same_block_start_pos=False):
+    if same_block_start_pos:
+        assert not rand_y
+    self._start_at_obj = start_at_obj
+    self._rand_y = rand_y
+    self._same_block_start_pos = same_block_start_pos
+    self._camera_name = camera
+    self._dist = []
+    self._dist_vec = []
+    super(FetchPushEnv2, self).__init__()
+    # self._old_observation_space = self.observation_space
+    # self._new_observation_space = gym.spaces.Box(
+    #     low=np.full((64*64*6), 0),
+    #     high=np.full((64*64*6), 255),
+    #     dtype=np.uint8)
+    # self.observation_space = self._new_observation_space
+    self._old_observation_space = self.observation_space
+    self._new_observation_space = gym.spaces.Box(
+        low=np.full((50,), -np.inf),
+        high=np.full((50,), np.inf),
+        dtype=np.float32)
+    self.observation_space = self._new_observation_space
+    self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
+
+    print("self._same_block_start_pos:", self._same_block_start_pos)
+    print("self._rand_y:", self._rand_y)
+
+  def reset_metrics(self):
+    self._dist_vec = []
+    self._dist = []
+
+  def _move_hand_to_obj(self):
+    s = super(FetchPushEnv2, self)._get_obs()
+    for _ in range(100):
+      hand = s['observation'][:3]
+      obj = s['achieved_goal'] + np.array([-0.02, 0.0, 0.0])
+      delta = obj - hand
+      if np.linalg.norm(delta) < 0.06:
+        break
+      a = np.concatenate([np.clip(delta, -1, 1), [0.0]])
+      s, _, _, _ = super(FetchPushEnv2, self).step(a)
+
+  def reset(self):
+    if self._dist:  # if len(self._dist) > 0 ...
+      self._dist_vec.append(self._dist)
+    self._dist = []
+
+    # generate the new goal image
+    self.observation_space = self._old_observation_space
+    s = super(FetchPushEnv2, self).reset()
+    self.observation_space = self._new_observation_space
+
+    if not self._same_block_start_pos:
+        # Randomize object position
+        for _ in range(8):
+          super(FetchPushEnv2, self).step(np.array([-1.0, 0.0, 0.0, 0.0]))
+    object_qpos = self.sim.data.get_joint_qpos('object0:joint')
+    if not self._rand_y:
+      object_qpos[1] = 0.75
+    self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+    self._move_hand_to_obj()
+    # self._goal_img = self.observation(s)
+    block_xyz = self.sim.data.get_joint_qpos('object0:joint')[:3]
+    if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
+      print('Bad reset, recursing.')
+      return self.reset()
+    self._goal = block_xyz[:2].copy()
+
+    self.observation_space = self._old_observation_space
+    s = super(FetchPushEnv2, self).reset()
+    self.observation_space = self._new_observation_space
+    for _ in range(8):
+      super(FetchPushEnv2, self).step(np.array([-1.0, 0.0, 0.0, 0.0]))
+    object_qpos = self.sim.data.get_joint_qpos('object0:joint')
+    object_qpos[:2] = np.array([1.15, 0.75])
+    self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+    if self._start_at_obj:
+      self._move_hand_to_obj()
+    else:
+      for _ in range(5):
+        super(FetchPushEnv2, self).step(self.action_space.sample())
+
+    block_xyz = self.sim.data.get_joint_qpos('object0:joint')[:3].copy()
+    # img = self.observation(s)
+    dist = np.linalg.norm(block_xyz[:2] - self._goal)
+    self._dist.append(dist)
+    if block_xyz[2] < 0.4:  # If block has fallen off the table, recurse.
+      print('Bad reset, recursing.')
+      return self.reset()
+
+    # return np.concatenate([img, self._goal_img])
+    return self.observation(s)
+
+  def step(self, action):
+    s, _, _, _ = super(FetchPushEnv2, self).step(action)
+    block_xy = self.sim.data.get_joint_qpos('object0:joint')[:2]
+    dist = np.linalg.norm(block_xy - self._goal)
+    self._dist.append(dist)
+    done = False
+    r = float(dist < 0.05)  # Taken from the original task code.
+    info = {}
+    # img = self.observation(s)
+    # return np.concatenate([img, self._goal_img]), r, done, info
+    return self.observation(s), r, done, info
+
+  def observation(self, observation):
+    # self.sim.data.site_xpos[0] = 1_000_000
+    # img = self.render(mode='rgb_array', height=64, width=64)
+    # return img.flatten()
+    start_index = 3
+    end_index = 6
+    goal_pos_1 = observation['achieved_goal']
+    goal_pos_2 = observation['observation'][start_index:end_index]
+    assert np.all(goal_pos_1 == goal_pos_2)
+    s = observation['observation']
+    g = np.zeros_like(s)
+    g[:start_index] = observation['desired_goal']
+    g[start_index:end_index] = observation['desired_goal']
+    return np.concatenate([s, g]).astype(np.float32)
+
+  def _viewer_setup(self):
+    super(FetchPushEnv2, self)._viewer_setup()
+    if self._camera_name == 'camera1':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 180
+      self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera2':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.65
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera3':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
+    else:
+      raise NotImplementedError
+
+class FetchPushEnv2Goals(FetchPushEnv2):
+        def __init__(self, *args, add_goal_noise=False, **kwargs):
+            self._add_goal_noise = add_goal_noise
+            super(FetchPushEnv2Goals, self).__init__(*args, **kwargs)
+
+        def _sample_goal(self):
+            goal = np.array([1.4, 0.9, 0.42469975])
+            if self._add_goal_noise:
+                goal += np.random.normal(scale=0.01, size=goal.shape)
+            return goal
+
+        def get_expert_goals(self):
+            return None
+
+"""

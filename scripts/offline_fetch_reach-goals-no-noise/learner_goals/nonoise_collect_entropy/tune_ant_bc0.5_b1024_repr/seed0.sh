@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=iris
+#SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="bc0.5_b1024"
@@ -39,9 +39,10 @@ python3 -u gpu_test.py
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals13 \
---env_name=offline_fetch_push-goals-no-noise \
+--env_name=offline_fetch_reach-goals-no-noise \
 --seed=0 \
---description=nonoise_collect_entropy_10-bc0.5_b1024 \
+--description=nonoise_collect_entropy_10-bc0.5_b1024_repr \
+--repr_norm=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
 --repr_dim=256 \
@@ -55,6 +56,6 @@ python3 -u lp_contrastive_goals.py \
 --twin_q=true \
 --bc_coef=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
---data_load_dir=/iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds
+--data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data
 
 # --project=contrastive_rl_goals12 \

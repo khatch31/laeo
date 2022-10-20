@@ -62,6 +62,7 @@ class ContrastiveConfigGoals:
   actor_min_std: float = 1e-6
   use_random_actor: bool = True  # Initial with uniform random policy.
   repr_norm: bool = False
+  repr_norm_temp: bool = False
   use_cpc: bool = False
   local: bool = False  # Whether running locally. Disables eval.
   use_td: bool = False

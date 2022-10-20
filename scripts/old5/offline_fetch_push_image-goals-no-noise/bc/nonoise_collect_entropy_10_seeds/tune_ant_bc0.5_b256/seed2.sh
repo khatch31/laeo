@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="bc0.5_b1024"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=300G
+#SBATCH --mem=256G
 
 
 which python3
@@ -40,8 +40,8 @@ python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
 --project=contrastive_rl_goals12 \
 --env_name=offline_fetch_push_image-goals-no-noise \
---seed=0 \
---description=nonoise_collect_entropy_10-bc0.5_b1024 \
+--seed=2 \
+--description=nonoise_collect_entropy_10-bc0.5_b256 \
 --use_gcbc=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
@@ -50,12 +50,12 @@ python3 -u lp_contrastive_goals.py \
 --hidden_layer_sizes=1024 \
 --max_replay_size=10000000 \
 --actor_min_std=0.1 \
---batch_size=1024 \
+--batch_size=256 \
 --num_sgd_steps_per_step=1 \
+--prefetch_size=1 \
 --num_actors=0 \
 --twin_q=true \
 --bc_coef=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
 --data_load_dir=/iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds
-
-# --project=contrastive_rl_goals12 \
+# --data_load_dir=/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3/fetch_reach-goals-no-noise/learner/nonoise_collect_entropy/seed_0/recorded_data

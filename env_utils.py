@@ -130,15 +130,32 @@ def load(env_name):
                       CLASS = fetch_envs.FetchPushImageGoalsRED
                   elif "occluded" in env_name:
                       CLASS = fetch_envs.FetchPushImageGoalsOccluded
+                  elif "minimal" in env_name:
+                      CLASS = fetch_envs.FetchPushImageMinimalGoals
                   else:
                       CLASS = fetch_envs.FetchPushImageGoals
               else:
                   CLASS = fetch_envs.FetchPushImage
           else:
-              if "goals" in env_name:
-                  CLASS = fetch_envs.FetchPushEnvGoals
+              # if "push2":
+              #     if "goals" in env_name:
+              #         CLASS = fetch_envs.FetchPushEnv2Goals
+              #     else:
+              #         CLASS = fetch_envs.FetchPushEnv2
+              if "push3":
+                  if "goals" in env_name:
+                      CLASS = fetch_envs.FetchPushEnv3Goals
+                  else:
+                      CLASS = fetch_envs.FetchPushEnv3
               else:
-                  CLASS = fetch_envs.FetchPushEnv
+                  if "goals" in env_name:
+                      CLASS = fetch_envs.FetchPushEnvGoals
+                  else:
+                      CLASS = fetch_envs.FetchPushEnv
+
+          if "determ" in env_name:
+              kwargs['same_block_start_pos'] = True
+              kwargs['rand_y'] = False
 
       if "goals" in env_name and "no-noise" in env_name:
           kwargs["add_goal_noise"] = False
@@ -189,6 +206,7 @@ def load(env_name):
   # different kwargs, which pytype doesn't reason about.
   gym_env = CLASS(**kwargs)  # pytype: disable=wrong-keyword-args
   obs_dim = gym_env.observation_space.shape[0] // 2
+  print("gym_env:", gym_env)
   return gym_env, obs_dim, max_episode_steps
 
 

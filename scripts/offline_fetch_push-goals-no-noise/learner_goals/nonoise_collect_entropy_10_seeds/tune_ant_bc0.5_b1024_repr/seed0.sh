@@ -41,7 +41,8 @@ python3 -u lp_contrastive_goals.py \
 --project=contrastive_rl_goals13 \
 --env_name=offline_fetch_push-goals-no-noise \
 --seed=0 \
---description=nonoise_collect_entropy_10-bc0.5_b1024 \
+--description=nonoise_collect_entropy_10-bc0.5_b1024_repr \
+--repr_norm=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
 --repr_dim=256 \

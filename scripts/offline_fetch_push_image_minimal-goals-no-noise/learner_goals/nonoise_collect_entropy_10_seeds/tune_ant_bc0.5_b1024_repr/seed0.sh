@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=iris
+#SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="bc0.5_b1024"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=256G
+#SBATCH --mem=300G
 
 
 which python3
@@ -36,12 +36,13 @@ ls -l /usr/local
 # export CUDA_VISIBLE_DEVICES=""
 python3 -u gpu_test.py
 
-python3 -u lp_contrastive.py \
+python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals12 \
---env_name=fetch_reach_image-goals-no-noise \
+--project=contrastive_rl_goals13 \
+--env_name=offline_fetch_push_image_minimal-goals-no-noise \
 --seed=0 \
---description=b1024 \
+--description=nonoise_collect_entropy_10-bc0.5_b1024_repr \
+--repr_norm=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
 --repr_dim=256 \
@@ -51,5 +52,11 @@ python3 -u lp_contrastive.py \
 --actor_min_std=0.1 \
 --batch_size=1024 \
 --num_sgd_steps_per_step=1 \
+--num_actors=0 \
 --twin_q=true \
+--bc_coef=0.5 \
 --logdir=/iris/u/khatch/contrastive_rl/results \
+--data_load_dir=/iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds
+# --data_load_dir=/iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds
+
+# --project=contrastive_rl_goals13 \

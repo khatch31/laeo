@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=iris
+#SBATCH --partition=iris-hi
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name="bc0.5_b1024"
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=300G
 
 
 which python3
@@ -13,7 +13,7 @@ pwd
 source ~/.bashrc
 # conda init bash
 source /iris/u/khatch/anaconda3/bin/activate
-conda activate contrastive_rl
+conda activate crl2
 
 unset LD_LIBRARY_PATH
 unset LD_PRELOAD
@@ -38,10 +38,11 @@ python3 -u gpu_test.py
 
 python3 -u lp_contrastive_goals.py \
 --lp_launch_type=local_mt \
---project=contrastive_rl_goals13 \
---env_name=offline_fetch_push-goals-no-noise \
---seed=0 \
+--project=contrastive_rl_goals12 \
+--env_name=offline_fetch_push_image-goals-no-noise \
+--seed=2 \
 --description=nonoise_collect_entropy_10-bc0.5_b1024 \
+--use_gcbc=True \
 --entropy_coefficient=0 \
 --max_number_of_steps=500000 \
 --repr_dim=256 \
@@ -51,6 +52,7 @@ python3 -u lp_contrastive_goals.py \
 --actor_min_std=0.1 \
 --batch_size=1024 \
 --num_sgd_steps_per_step=1 \
+--prefetch_size=1 \
 --num_actors=0 \
 --twin_q=true \
 --bc_coef=0.5 \

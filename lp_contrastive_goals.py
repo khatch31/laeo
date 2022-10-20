@@ -107,6 +107,9 @@ flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 flags.DEFINE_string('reward_loss_type', "bce", 'description.')
 
 flags.DEFINE_integer('seed', 0, 'description.')
+flags.DEFINE_integer('prefetch_size', 4, 'description.')
+# flags.DEFINE_bool('repr_norm_temp', False, 'repr_norm_temp.')
+flags.DEFINE_bool('repr_norm', False, 'repr_norm.')
 
 
 @functools.lru_cache()
@@ -124,11 +127,11 @@ def get_program(params):
   env_name = params['env_name']
   seed = params.pop('seed')
 
-  if params.get('use_image_obs', False) and not params.get('local', False):
-  #   print('WARNING: overwriting parameters for image-based tasks.')
-    # params['num_sgd_steps_per_step'] = 16
-    params['prefetch_size'] = 16
-    # params['num_actors'] = 10
+  # if params.get('use_image_obs', False) and not params.get('local', False):
+  # #   print('WARNING: overwriting parameters for image-based tasks.')
+  #   # params['num_sgd_steps_per_step'] = 16
+  #   params['prefetch_size'] = 16
+  #   # params['num_actors'] = 10
 
   if env_name.startswith('offline'):
     # No actors needed for the offline RL experiments. Evaluation is
@@ -162,7 +165,8 @@ def get_program(params):
       use_image_obs=config.use_image_obs,
       hidden_layer_sizes=config.hidden_layer_sizes,
       actor_min_std=config.actor_min_std,
-      use_td=config.use_td)
+      use_td=config.use_td,
+      slice_actor_goal=True)
 
   expert_goals = environment.get_expert_goals()
   # print("\nexpert_goals:\n", expert_goals)
@@ -309,6 +313,9 @@ def main(_):
   params["hardcode_r"] = FLAGS.hardcode_r
   params["shift_learned_reward"] = FLAGS.shift_learned_reward
   params["seed"] = FLAGS.seed
+  params["prefetch_size"] = FLAGS.prefetch_size
+  # params["repr_norm_temp"] = FLAGS.repr_norm_temp
+  params["repr_norm"] = FLAGS.repr_norm
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -384,3 +391,17 @@ def main(_):
 
 if __name__ == '__main__':
   app.run(main)
+
+"""
+ if expert_goals is None and episode["reward"].sum() > 0:
+                if "success" in episode.keys():
+                    success_idxs = np.nonzero(episode["success"])[0]
+                else:
+                    success_idxs = np.nonzero(episode["reward"])[0]
+
+episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
+
+
+# if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
+    if "offline" in self._builder._config.env_name:
+"""

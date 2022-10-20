@@ -66,8 +66,10 @@ def make_networks(
     twin_q = False,
     use_image_obs = False,
     use_td = False,
-    slice_actor_goal=True):
+    slice_actor_goal=False):
   """Creates networks used by the agent."""
+
+  print(f"repr_norm: {repr_norm}, repr_norm_temp: {repr_norm_temp}")
 
   num_dimensions = np.prod(spec.actions.shape, dtype=int)
   TORSO = networks_lib.AtariTorso  # pylint: disable=invalid-name
