@@ -103,9 +103,7 @@ def default_evaluator_factory(
     # Create environment and evaluator networks
     environment_key, actor_key = jax.random.split(random_key)
     # Environments normally require uint32 as a seed.
-    print("\n\n\n\nHERE\n\n\n\n")
     environment = environment_factory(utils.sample_uint32(environment_key))
-    print("\n\n\n\nAFTER HERE\n\n\n\n")
     networks = network_factory(specs.make_environment_spec(environment))
 
     actor = make_actor(actor_key, policy_factory(networks), variable_source)
@@ -184,9 +182,6 @@ class DistributedLayoutGoals:
         multithreading_colocate_learner_and_reverb)
     self._checkpointing_config = checkpointing_config
 
-
-
-
   def replay(self, n_episodes=None):
     """The replay storage."""
     dummy_seed = 1
@@ -214,14 +209,6 @@ class DistributedLayoutGoals:
   ):
     """The Learning part of the agent."""
 
-    # dummy_seed = 1
-    # environment_spec = (
-    #     self._environment_spec or
-    #     specs.make_environment_spec(self._environment_factory(dummy_seed)))
-    #
-    # # Creates the networks to optimize (online) and target networks.
-    # networks = self._network_factory(environment_spec)
-
     use_image_obs = self._builder._config.use_image_obs
     # if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
     if "offline" in self._builder._config.env_name:
@@ -247,8 +234,6 @@ class DistributedLayoutGoals:
 
         # j = 0
         for ep_idx, episode_file in tqdm.tqdm(enumerate(episode_files), total=len(episode_files), desc="Loading episode files"):
-            # if episode_file == "/iris/u/khatch/contrastive_rl/data/ceborl/dial_turn/medium_replay/ep-367.npz":
-            #     continue
             # j += 1
             # if j > 500:
             #     break
@@ -293,8 +278,6 @@ class DistributedLayoutGoals:
                 # else:
                 #     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
                 #     adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
-
-                # print("Before")
                 if ep_idx in val_ep_idxs: # Add to val replay buffer
                     val_examples_added += 1
                     if t == 0:
@@ -485,25 +468,3 @@ class DistributedLayoutGoals:
                            actor_id))
 
     return program
-
-"""
-if t == 0:
-  step_type = dm_env.StepType.FIRST
-elif t == episode["observation"].shape[0] - 1:
-  step_type = dm_env.StepType.LAST
-  discount = 0.0
-else:
-  step_type = dm_env.StepType.MID
-
-ts = dm_env.TimeStep(
-    step_type=step_type,
-    reward=episode['reward'][t],
-    discount=episode["discount"][t],
-    observation=episode['observation'][t],
-)
-if t == 0:
-  adder.add_first(ts)  # pytype: disable=attribute-error
-else:
-  adder.add(action=episode['action'][t - 1], next_timestep=ts)  # pytype: disable=attribute-erro
-
-"""

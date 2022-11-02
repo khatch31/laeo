@@ -56,10 +56,6 @@ import dill
 
 from contrastive.wandb_logger import WANDBLogger
 
-# from mujoco_py import GlfwContext
-# # GlfwContext(offscreen = True)
-# GlfwContext(offscreen = False)
-
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
@@ -108,8 +104,12 @@ flags.DEFINE_string('reward_loss_type', "bce", 'description.')
 
 flags.DEFINE_integer('seed', 0, 'description.')
 flags.DEFINE_integer('prefetch_size', 4, 'description.')
+flags.DEFINE_integer('num_parallel_calls', 4, 'description.')
 # flags.DEFINE_bool('repr_norm_temp', False, 'repr_norm_temp.')
 flags.DEFINE_bool('repr_norm', False, 'repr_norm.')
+flags.DEFINE_bool('mse_bc_loss', False, 'mse_bc_loss.')
+
+
 
 
 @functools.lru_cache()
@@ -145,9 +145,6 @@ def get_program(params):
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
-  # def env_factory_fn(seed):
-  #     return contrastive_utils.make_environment(env_name, config.start_index, config.end_index, seed)
-  # env_factory = env_factory_fn
 
   env_factory_no_extra = lambda seed: env_factory(seed)[0]  # Remove obs_dim.
   environment, obs_dim = get_env(env_name, config.start_index,
@@ -203,27 +200,11 @@ def get_program(params):
                             name,
                             FLAGS.project)
 
-  # wandblogger_info = dict(logdir=os.path.join(logdir, "wandb_logs"),
-  #                         params=params,
-  #                         group_name=group_name,
-  #                         name=name,
-  #                         project=FLAGS.project)
-
   if FLAGS.replay_buffer_load_dir is not None:
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
-  # if config.use_td:
-  #     assert FLAGS.reward_checkpoint_path is not None
-  #
-  # if FLAGS.reward_checkpoint_path is not None:
-  #     assert config.use_td
-  #     reader = tf.train.load_checkpoint(FLAGS.reward_checkpoint_path)
-  #     params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
-  #     reward_checkpoint_state = dill.loads(params)
-  # else:
-  #     assert not config.use_td
-  #     reward_checkpoint_state = None
+
   reward_checkpoint_state = None
 
   agent = contrastive.DistributedContrastiveGoals(
@@ -237,7 +218,6 @@ def get_program(params):
       expert_goals=expert_goals,
       logdir=logdir,
       wandblogger=wandblogger,
-      # wandblogger=wandblogger_info,
       save_data=FLAGS.save_data,
       save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),
@@ -314,8 +294,11 @@ def main(_):
   params["shift_learned_reward"] = FLAGS.shift_learned_reward
   params["seed"] = FLAGS.seed
   params["prefetch_size"] = FLAGS.prefetch_size
+  params["num_parallel_calls"] = FLAGS.num_parallel_calls
   # params["repr_norm_temp"] = FLAGS.repr_norm_temp
   params["repr_norm"] = FLAGS.repr_norm
+  params["mse_bc_loss"] = FLAGS.mse_bc_loss
+
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -391,17 +374,3 @@ def main(_):
 
 if __name__ == '__main__':
   app.run(main)
-
-"""
- if expert_goals is None and episode["reward"].sum() > 0:
-                if "success" in episode.keys():
-                    success_idxs = np.nonzero(episode["success"])[0]
-                else:
-                    success_idxs = np.nonzero(episode["reward"])[0]
-
-episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
-
-
-# if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
-    if "offline" in self._builder._config.env_name:
-"""

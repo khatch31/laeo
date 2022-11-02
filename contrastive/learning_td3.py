@@ -51,7 +51,7 @@ class TD3Learner(acme.Learner):
                random_key: networks_lib.PRNGKey,
                discount: float,
                iterator: Iterator[reverb.ReplaySample],
-               # val_iterator: Iterator[reverb.ReplaySample],
+               val_iterator: Iterator[reverb.ReplaySample],
                policy_optimizer: optax.GradientTransformation,
                critic_optimizer: optax.GradientTransformation,
                twin_critic_optimizer: optax.GradientTransformation,
@@ -272,8 +272,8 @@ class TD3Learner(acme.Learner):
         all_transitions,
     ) -> Tuple[TrainingState, Dict[str, jnp.ndarray]]:
 
-      # transitions, val_transitions = all_transitions
-      transitions = all_transitions
+      transitions, val_transitions = all_transitions
+      # transitions = all_transitions
 
       random_key, key_critic, key_twin, key_reward = jax.random.split(state.random_key, 4)
 
@@ -342,8 +342,8 @@ class TD3Learner(acme.Learner):
 
       reward_grad = jax.value_and_grad(reward_loss, has_aux=True)
 
-      # (val_reward_loss, val_reward_metrics), _ = reward_grad(
-      #     state.r_params, val_transitions, key_reward, expert_goals)
+      (val_reward_loss, val_reward_metrics), _ = reward_grad(
+          state.r_params, val_transitions, key_reward, expert_goals)
 
       (reward_loss_value, reward_metrics), reward_grads = reward_grad(
           state.r_params, transitions, key_reward, expert_goals)
@@ -379,7 +379,7 @@ class TD3Learner(acme.Learner):
       }
 
       metrics.update({"train_" + key:val for key, val in reward_metrics.items()})
-      # metrics.update({"val_" + key:val for key, val in val_reward_metrics.items()})
+      metrics.update({"val_" + key:val for key, val in val_reward_metrics.items()})
       metrics.update(critic_metrics)
       metrics.update({"twin_" + key:val for key, val in twin_critic_metrics.items()})
 
@@ -400,7 +400,7 @@ class TD3Learner(acme.Learner):
 
     # Create prefetching dataset iterator.
     self._iterator = iterator
-    # self._val_iterator = val_iterator
+    self._val_iterator = val_iterator
 
     # Faster sgd step
     update_step = utils.process_multiple_batches(update_step,
@@ -458,11 +458,11 @@ class TD3Learner(acme.Learner):
     sample = next(self._iterator)
     transitions = types.Transition(*sample.data)
 
-    # val_sample = next(self._val_iterator)
-    # val_transitions = types.Transition(*val_sample.data)
+    val_sample = next(self._val_iterator)
+    val_transitions = types.Transition(*val_sample.data)
 
-    # self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
-    self._state, metrics = self._update_step(self._state, transitions)
+    self._state, metrics = self._update_step(self._state, (transitions, val_transitions))
+    # self._state, metrics = self._update_step(self._state, transitions)
 
     # Compute elapsed time.
     timestamp = time.time()

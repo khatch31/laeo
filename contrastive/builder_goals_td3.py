@@ -30,10 +30,9 @@ import tensorflow as tf
 from acme import types
 import tree
 
+from contrastive.episode_saver_adder import EpisodeAdderSaver
 
-# class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder[td3_networks.TD3Networks,
-#                                               actor_core_lib.FeedForwardPolicy,
-#                                               reverb.ReplaySample]):
+
 class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
   """TD3 Builder."""
 
@@ -53,24 +52,12 @@ class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
     self._save_data = save_data
     self._data_save_dir = data_save_dir ###---###
 
-
-  # def make_learner(
-  #     self,
-  #     random_key: networks_lib.PRNGKey,
-  #     networks: td3_networks.TD3Networks,
-  #     dataset: Iterator[reverb.ReplaySample],
-  #     # logger_fn: loggers.LoggerFactory,
-  #     environment_spec: specs.EnvironmentSpec,
-  #     replay_client: Optional[reverb.Client] = None,
-  #     counter: Optional[counting.Counter] = None,
-  # ) -> core.Learner:
-  #   del environment_spec, replay_client
   def make_learner(
       self,
       random_key,
       networks,
       dataset,
-      # val_dataset,
+      val_dataset,
       replay_client = None,
       counter = None,
       expert_goals=None, ###===### ###---###
@@ -100,93 +87,11 @@ class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
         use_sarsa_target=self._config.use_sarsa,
         bc_alpha=self._config.bc_alpha,
         iterator=dataset,
-        # val_iterator=val_dataset,
+        val_iterator=val_dataset,
         logger=self._logger_fn(),
         config=self._config,
         counter=counter,
         expert_goals=expert_goals)
-  #
-  # def make_actor(
-  #     self,
-  #     random_key: networks_lib.PRNGKey,
-  #     policy: actor_core_lib.FeedForwardPolicy,
-  #     # environment_spec: specs.EnvironmentSpec,
-  #     variable_source: Optional[core.VariableSource] = None,
-  #     adder: Optional[adders.Adder] = None,
-  # ) -> core.Actor:
-  #   # del environment_spec
-  #   assert variable_source is not None
-  #   actor_core = actor_core_lib.batched_feed_forward_to_actor_core(policy)
-  #   # Inference happens on CPU, so it's better to move variables there too.
-  #   variable_client = variable_utils.VariableClient(variable_source, 'policy',
-  #                                                   device='cpu')
-  #   # return actors.GenericActor(
-  #   #     actor_core, random_key, variable_client, adder, backend='cpu')
-  #   if self._config.use_random_actor: ###@@@###
-  #     # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
-  #     ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
-  #   else:
-  #     # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
-  #     ACTOR = contrastive_utils.NoGoalActor
-  #   return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu')
-  #
-  # def make_replay_tables(
-  #     self,
-  #     environment_spec: specs.EnvironmentSpec,
-  #     # policy: actor_core_lib.FeedForwardPolicy, ###@@@###
-  # ) -> List[reverb.Table]:
-  #   """Creates reverb tables for the algorithm."""
-  #   # del policy ###@@@###
-  #   samples_per_insert_tolerance = (
-  #       self._config.samples_per_insert_tolerance_rate *
-  #       self._config.samples_per_insert)
-  #   error_buffer = self._config.min_replay_size * samples_per_insert_tolerance
-  #   limiter = rate_limiters.SampleToInsertRatio(
-  #       min_size_to_sample=self._config.min_replay_size,
-  #       samples_per_insert=self._config.samples_per_insert,
-  #       error_buffer=error_buffer)
-  #   return [reverb.Table(
-  #       name=self._config.replay_table_name,
-  #       sampler=reverb.selectors.Uniform(),
-  #       remover=reverb.selectors.Fifo(),
-  #       max_size=self._config.max_replay_size,
-  #       rate_limiter=limiter,
-  #       signature=adders_reverb.NStepTransitionAdder.signature(
-  #           environment_spec))]
-  #
-  # def make_dataset_iterator(
-  #     self, replay_client: reverb.Client) -> Iterator[reverb.ReplaySample]:
-  #   """Creates a dataset iterator to use for learning."""
-  #   dataset = datasets.make_reverb_dataset(
-  #       table=self._config.replay_table_name,
-  #       server_address=replay_client.server_address,
-  #       batch_size=(
-  #           self._config.batch_size * self._config.num_sgd_steps_per_step),
-  #       prefetch_size=self._config.prefetch_size,
-  #       transition_adder=True)
-  #   return utils.device_put(dataset.as_numpy_iterator(), jax.devices()[0])
-  #
-  # def make_adder(
-  #     self, replay_client: reverb.Client,
-  #     # environment_spec: Optional[specs.EnvironmentSpec], ###@@@###
-  #     # policy: Optional[actor_core_lib.FeedForwardPolicy]
-  # ) -> Optional[adders.Adder]:
-  #   """Creates an adder which handles observations."""
-  #   # del environment_spec, policy ###@@@###
-  #   return adders_reverb.NStepTransitionAdder(
-  #       priority_fns={self._config.replay_table_name: None},
-  #       client=replay_client,
-  #       n_step=self._config.n_step,
-  #       discount=self._config.discount)
-  #
-  # def make_policy(self,
-  #                 networks: td3_networks.TD3Networks,
-  #                 environment_spec: specs.EnvironmentSpec,
-  #                 evaluation: bool = False) -> actor_core_lib.FeedForwardPolicy:
-  #   """Creates a policy."""
-  #   sigma = 0 if evaluation else self._config.sigma
-  #   return td3_networks.get_default_behavior_policy(
-  #       networks=networks, action_specs=environment_spec.actions, sigma=sigma)
 
   def make_actor(
       self,
@@ -201,22 +106,39 @@ class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
                                                     device='cpu')
     if self._config.use_random_actor:
       # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
-      ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
+      ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
+      # ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
     else:
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
-      ACTOR = contrastive_utils.ZeroGoalActor
-    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu')
+      ACTOR = contrastive_utils.NoGoalActor
+      # ACTOR = contrastive_utils.ZeroGoalActor
+    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=True)
 
   def make_replay_tables(
       self,
       environment_spec,
+      n_episodes=None,
   ):
     """Create tables to insert data into."""
     samples_per_insert_tolerance = (
         self._config.samples_per_insert_tolerance_rate
         * self._config.samples_per_insert)
-    min_replay_traj = self._config.min_replay_size  // self._config.max_episode_steps  # pylint: disable=line-too-long
-    max_replay_traj = self._config.max_replay_size  // self._config.max_episode_steps  # pylint: disable=line-too-long
+
+    if n_episodes is None:
+        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+        max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    else:
+        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps
+        max_replay_traj = n_episodes
+
+        min_replay_traj += 100
+        max_replay_traj += 100
+    # min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    # max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+
+    print("\nmin_replay_traj:", min_replay_traj)
+    print("max_replay_traj:", max_replay_traj, "\n")
+
     error_buffer = min_replay_traj * samples_per_insert_tolerance
     limiter = rate_limiters.SampleToInsertRatio(
         min_size_to_sample=min_replay_traj,

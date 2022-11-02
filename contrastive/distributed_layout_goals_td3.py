@@ -41,6 +41,8 @@ import tqdm
 from contrastive.default_logger import make_default_logger
 from glob import glob
 import os
+import functools
+import contrastive.utils as contrastive_utils
 
 
 
@@ -181,18 +183,11 @@ class DistributedLayoutGoalsTD3:
         multithreading_colocate_learner_and_reverb)
     self._checkpointing_config = checkpointing_config
 
-  def replay(self):
+  def replay(self, n_episodes=None):
     """The replay storage."""
     dummy_seed = 1
-    environment_spec = (
-        self._environment_spec or
-        specs.make_environment_spec(self._environment_factory(dummy_seed)))
-    return self._builder.make_replay_tables(environment_spec)
-  #   def make_replay_tables(
-  #     self,
-  #     environment_spec: specs.EnvironmentSpec,
-  #     policy: actor_core_lib.FeedForwardPolicy,
-  # ) -> List[reverb.Table]:
+    environment_spec = (self._environment_spec or specs.make_environment_spec(self._environment_factory(dummy_seed)))
+    return self._builder.make_replay_tables(environment_spec, n_episodes=n_episodes)
 
   def counter(self):
     kwargs = {}
@@ -209,28 +204,23 @@ class DistributedLayoutGoalsTD3:
       self,
       random_key,
       replay,
-      # val_replay,
+      val_replay,
       counter,
       expert_goals, ###===### ###---###
   ):
     """The Learning part of the agent."""
 
     use_image_obs = self._builder._config.use_image_obs
-    if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
+    # if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
+    if "offline" in self._builder._config.env_name:
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
-        # val_adder = self._builder.make_adder(val_replay, force_no_save=True)
-
-  #       def make_adder(
-  #     self, replay_client: reverb.Client,
-  #     environment_spec: Optional[specs.EnvironmentSpec],
-  #     policy: Optional[actor_core_lib.FeedForwardPolicy]
-  # ) -> Optional[adders.Adder]:
+        val_adder = self._builder.make_adder(val_replay, force_no_save=True)
 
         if expert_goals is None:
             expert_goals_list = []
 
-        episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
+        episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
         episode_files = sorted(episode_files, key=get_ep_no)
         # episode_files = sorted(episode_files, key=get_ep_no, reverse=True) # j = 0
@@ -246,7 +236,7 @@ class DistributedLayoutGoalsTD3:
         # j = 0
         for ep_idx, episode_file in tqdm.tqdm(enumerate(episode_files), total=len(episode_files), desc="Loading episode files"):
             # j += 1
-            # if j > 500:
+            # if j > 1000:
             #     break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
@@ -257,7 +247,10 @@ class DistributedLayoutGoalsTD3:
                 assert len(episode["observation"]) == len(episode["image"])
 
             if expert_goals is None and episode["reward"].sum() > 0:
-                success_idxs = np.nonzero(episode["reward"])[0]
+                if "success" in episode.keys():
+                    success_idxs = np.nonzero(episode["success"])[0]
+                else:
+                    success_idxs = np.nonzero(episode["reward"])[0]
                 # success_observations = episode["observation"][success_idxs]
                 for idx in success_idxs:
                     if use_image_obs:
@@ -289,19 +282,27 @@ class DistributedLayoutGoalsTD3:
 
                 if ep_idx in val_ep_idxs: # Add to val replay buffer
                     val_examples_added += 1
-                    # if t == 0:
-                    #     assert episode["step_type"][t] == dm_env.StepType.FIRST
-                    #     val_adder.add_first(ts)  # pytype: disable=attribute-error
-                    # else:
-                    #     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
-                    #     val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                    if t == 0:
+                        assert episode["step_type"][t] == dm_env.StepType.FIRST
+                        val_adder.add_first(ts)  # pytype: disable=attribute-error
+                    else:
+                        if t == episode["observation"].shape[0] - 1:
+                            assert episode["step_type"][t] == dm_env.StepType.LAST
+                        else:
+                            assert episode["step_type"][t] == dm_env.StepType.MID
+
+                        val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
                 else: # Add to train replay buffer
                     train_examples_added += 1
                     if t == 0:
                         assert episode["step_type"][t] == dm_env.StepType.FIRST
                         adder.add_first(ts)  # pytype: disable=attribute-error
                     else:
-                        assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
+                        if t == episode["observation"].shape[0] - 1:
+                            assert episode["step_type"][t] == dm_env.StepType.LAST
+                        else:
+                            assert episode["step_type"][t] == dm_env.StepType.MID
+
                         adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
 
 
@@ -316,10 +317,12 @@ class DistributedLayoutGoalsTD3:
             idxs = idxs[:N_EXAMPLES]
             expert_goals = [expert_goals_list[i] for i in idxs]
             expert_goals = np.stack(expert_goals)
+            os.makedirs(os.path.join(os.getcwd(), "debug_images"), exist_ok=True)
+            np.save(os.path.join(os.getcwd(), "debug_images", "expert_goals"), expert_goals)
 
 
     iterator = self._builder.make_dataset_iterator(replay)
-    # val_iterator = self._builder.make_dataset_iterator(val_replay)
+    val_iterator = self._builder.make_dataset_iterator(val_replay)
 
     dummy_seed = 1
     environment_spec = (
@@ -344,10 +347,10 @@ class DistributedLayoutGoalsTD3:
     counter = counting.Counter(counter, 'learner')
 
 
-    # learner = self._builder.make_learner(random_key, networks, iterator, val_iterator, replay,
-    #                                      counter, expert_goals) ###===### ###---###
-    learner = self._builder.make_learner(random_key, networks, iterator, replay,
+    learner = self._builder.make_learner(random_key, networks, iterator, val_iterator, replay,
                                          counter, expert_goals) ###===### ###---###
+    # learner = self._builder.make_learner(random_key, networks, iterator, replay,
+    #                                      counter, expert_goals) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
@@ -374,22 +377,11 @@ class DistributedLayoutGoalsTD3:
 
     networks = self._network_factory(specs.make_environment_spec(environment))
     policy_network = self._policy_network(networks)
-    ###@@@###
     actor = self._builder.make_actor(random_key=actor_key,
                                      policy=policy_network,
                                      # environment_spec=None,
                                      variable_source=variable_source,
                                      adder=adder)
-  #   def make_actor(
-  #     self,
-  #     random_key: networks_lib.PRNGKey,
-  #     policy: actor_core_lib.FeedForwardPolicy,
-  #     environment_spec: specs.EnvironmentSpec,
-  #     variable_source: Optional[core.VariableSource] = None,
-  #     adder: Optional[adders.Adder] = None,
-  # ) -> core.Actor:
-  #   del environment_spec
-  #   assert variable_source is not None
 
     # Create logger and counter.
     counter = counting.Counter(counter, 'actor')
@@ -420,11 +412,16 @@ class DistributedLayoutGoalsTD3:
         return DefaultCheckpointer(os.path.join(self._logdir, "checkpoints", "replay_buffer"))
 
     if self._builder._config.env_name.startswith('offline'):
-        replay_node = lp.ReverbNode(self.replay)
+        # replay_node = lp.ReverbNode(self.replay)
         # val_replay_node = lp.ReverbNode(self.replay)
+        n_train_episodes, n_val_episodes = contrastive_utils.count_episodes(self._data_load_dir, self._builder._config.val_size)
+        print("\nNumber of train episodes:", n_train_episodes)
+        print("Number of val episodes:", n_val_episodes, "\n")
+        replay_node = lp.ReverbNode(functools.partial(self.replay, n_episodes=n_train_episodes))
+        val_replay_node = lp.ReverbNode(functools.partial(self.replay, n_episodes=n_val_episodes))
     else:
         replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
-        # val_replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
+        val_replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
 
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:
@@ -432,11 +429,11 @@ class DistributedLayoutGoalsTD3:
       else:
         replay = program.add_node(replay_node)
 
-    # with program.group('val_replay'):
-    #     if self._multithreading_colocate_learner_and_reverb:
-    #         val_replay = val_replay_node.create_handle()
-    #     else:
-    #         val_replay = program.add_node(val_replay_node)
+    with program.group('val_replay'):
+        if self._multithreading_colocate_learner_and_reverb:
+            val_replay = val_replay_node.create_handle()
+        else:
+            val_replay = program.add_node(val_replay_node)
 
     with program.group('counter'):
       counter = program.add_node(lp.CourierNode(self.counter))
@@ -446,14 +443,13 @@ class DistributedLayoutGoalsTD3:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    # learner_node = lp.CourierNode(self.learner, learner_key, replay, val_replay, counter, self._expert_goals) ###===### ###---###
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals) ###===### ###---###
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, val_replay, counter, self._expert_goals) ###===### ###---###
+    # learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()
-        program.add_node(
-            # lp.MultiThreadingColocation([learner_node, replay_node, val_replay_node]))
-            lp.MultiThreadingColocation([learner_node, replay_node]))
+        program.add_node(lp.MultiThreadingColocation([learner_node, replay_node, val_replay_node]))
+        # program.add_node(lp.MultiThreadingColocation([learner_node, replay_node]))
       else:
         learner = program.add_node(learner_node)
 

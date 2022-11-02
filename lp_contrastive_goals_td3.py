@@ -106,6 +106,8 @@ flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 flags.DEFINE_string('reward_loss_type', "bce", 'description.')
 
 flags.DEFINE_integer('seed', 0, 'description.')
+flags.DEFINE_integer('prefetch_size', 4, 'description.')
+flags.DEFINE_integer('num_parallel_calls', 4, 'description.')
 
 
 class ObjectDict(object):
@@ -129,11 +131,11 @@ def get_program(params):
   env_name = params['env_name']
   seed = params.pop('seed')
 
-  if params.get('use_image_obs', False) and not params.get('local', False):
-  #   print('WARNING: overwriting parameters for image-based tasks.')
-    # params['num_sgd_steps_per_step'] = 16
-    params['prefetch_size'] = 16
-    # params['num_actors'] = 10
+  # if params.get('use_image_obs', False) and not params.get('local', False):
+  # #   print('WARNING: overwriting parameters for image-based tasks.')
+  #   # params['num_sgd_steps_per_step'] = 16
+  #   params['prefetch_size'] = 16
+  #   # params['num_actors'] = 10
 
   if env_name.startswith('offline'):
     # No actors needed for the offline RL experiments. Evaluation is
@@ -161,21 +163,21 @@ def get_program(params):
 
   env_spec = ObjectDict({"observations":environment.observation_spec(), "actions":environment.action_spec()})
 
-
   ###@@@###
   network_factory = functools.partial(
       contrastive.networks_td3.make_networks,
       # specs=env_spec,
       obs_dim=obs_dim,
       hidden_layer_sizes=config.hidden_layer_sizes,
-      use_image_obs=config.use_image_obs)
+      use_image_obs=config.use_image_obs,
+      slice_actor_goal=False)
 
   expert_goals = environment.get_expert_goals()
-  print("\nexpert_goals:\n", expert_goals)
-  print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
-  print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
-  if "image" in env_name and "push" in env_name:
-      print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
+  # print("\nexpert_goals:\n", expert_goals)
+  # print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
+  # print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
+  # if "image" in env_name and "push" in env_name:
+  #     print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
   algo = "td3"
   if FLAGS.use_sarsa:
@@ -205,17 +207,7 @@ def get_program(params):
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
-  # if config.use_td:
-  #     assert FLAGS.reward_checkpoint_path is not None
-  #
-  # if FLAGS.reward_checkpoint_path is not None:
-  #     assert config.use_td
-  #     reader = tf.train.load_checkpoint(FLAGS.reward_checkpoint_path)
-  #     params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
-  #     reward_checkpoint_state = dill.loads(params)
-  # else:
-  #     assert not config.use_td
-  #     reward_checkpoint_state = None
+
   reward_checkpoint_state = None
 
   agent = contrastive.DistributedContrastiveGoalsTD3(
@@ -303,8 +295,9 @@ def main(_):
   params["sigmoid_q"] = FLAGS.sigmoid_q
   params["hardcode_r"] = FLAGS.hardcode_r
   params["shift_learned_reward"] = FLAGS.shift_learned_reward
-
   params["seed"] = FLAGS.seed
+  params["prefetch_size"] = FLAGS.prefetch_size
+  params["num_parallel_calls"] = FLAGS.num_parallel_calls
 
   if 'ant_' in env_name:
     params['end_index'] = 2

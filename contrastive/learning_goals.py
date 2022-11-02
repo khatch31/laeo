@@ -208,9 +208,14 @@ class ContrastiveLearnerGoals(acme.Learner):
         # hcb.id_print(new_actor_obs, what="\n\nnew_actor_obs")
         # dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
         dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
-        log_prob = networks.log_prob(dist_params, transitions.action)
-        actor_loss = -1.0 * jnp.mean(log_prob)
 
+        if config.mse_bc_loss:
+            # action = networks.sample(dist_params, key)
+            action = dist_params.mode()
+            actor_loss = jnp.square(action - transitions.action)
+        else:
+            log_prob = networks.log_prob(dist_params, transitions.action)
+            actor_loss = -1.0 * jnp.mean(log_prob)
         metrics = {}
       else:
         state = obs[:, :config.obs_dim]

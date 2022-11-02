@@ -57,7 +57,8 @@ def make_networks(
     spec: specs.EnvironmentSpec,
     obs_dim,
     hidden_layer_sizes: Sequence[int] = (256, 256),
-    use_image_obs = False,) -> TD3Networks:
+    use_image_obs = False,
+    slice_actor_goal=False) -> TD3Networks:
   """Creates networks used by the agent.
   The networks used are based on LayerNormMLP, which is different than the
   MLP with relu activation described in TD3 (which empirically performs worse).

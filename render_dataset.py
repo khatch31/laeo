@@ -12,22 +12,25 @@ import io
 from contrastive import utils as contrastive_utils
 
 # BASEDIR = "/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals3"
-BASEDIR = "/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals12"
+# BASEDIR = "/iris/u/khatch/contrastive_rl/results/contrastive_rl_goals12"
+BASEDIR = "/iris/u/khatch/contrastive_rl/data/fetch"
 
-def render_data(basedir, headdir, colors, occluded, red, seed=0):
-    env_name_pieces = headdir.split("/")[0].split("-")
-    env_name_pieces[0] += "_image"
-    if colors:
-        env_name_pieces[0] += "_colors"
-    if occluded:
-        env_name_pieces[0] += "_occluded"
-    if red:
-        env_name_pieces[0] += "_red"
-    env_name = "-".join(env_name_pieces)
+def render_data(datadir, env_name, colors, occluded, red, seed=0):
+    # env_name_pieces = headdir.split("/")[0].split("-")
+    # env_name_pieces[0] += "_image"
+    # if colors:
+    #     env_name_pieces[0] += "_colors"
+    # if occluded:
+    #     env_name_pieces[0] += "_occluded"
+    # if red:
+    #     env_name_pieces[0] += "_red"
+    # env_name = "-".join(env_name_pieces)
+    # env, obs_dim = contrastive_utils.make_environment(env_name, start_index=0, end_index=-1, seed=0)
+    #
+    # print("\n\nenv._environment._environment._environment:", env._environment._environment._environment, "\n\n")
+    # datadir = os.path.join(basedir, headdir, f"seed_{seed}", "recorded_data")
+
     env, obs_dim = contrastive_utils.make_environment(env_name, start_index=0, end_index=-1, seed=0)
-
-    print("\n\nenv._environment._environment._environment:", env._environment._environment._environment, "\n\n")
-    datadir = os.path.join(basedir, headdir, f"seed_{seed}", "recorded_data")
 
     if colors:
         datadir += "_colors"
@@ -74,7 +77,8 @@ def render_data(basedir, headdir, colors, occluded, red, seed=0):
                                act=episode["sim_state"][t]["act"],
                                udd_state=episode["sim_state"][t]["udd_state"])
             env.sim.set_state(sim_state)
-            img = env.observation(None)
+            # img = env.observation(None)
+            img = env.image_obs()
             images[t] = img
 
     #         img_reshaped = np.reshape(img.copy(), (64, 64, 3))
@@ -104,16 +108,19 @@ def render_data(basedir, headdir, colors, occluded, red, seed=0):
 def parse_arguments():
     from argparse import ArgumentParser
     parser = ArgumentParser(description="Save Episode Images")
-    parser.add_argument("--headdir", type=str,  help="")
+    # parser.add_argument("--headdir", type=str,  help="")
+    parser.add_argument("--datadir", type=str,  help="")
+    parser.add_argument("--env_name", type=str,  help="")
     parser.add_argument("--colors", action="store_true", default=False, help="")
     parser.add_argument("--red", action="store_true", default=False, help="")
     parser.add_argument("--occluded", action="store_true", default=False, help="")
-    parser.add_argument("--seed", type=int, default=0, help="")
+    # parser.add_argument("--seed", type=int, default=0, help="")
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_arguments()
-    render_data(BASEDIR, args.headdir, args.colors, args.occluded, args.red, args.seed)
+    # render_data(BASEDIR, args.headdir, args.colors, args.occluded, args.red, args.seed)
+    render_data(args.datadir, args.env_name, args.colors, args.occluded, args.red)#, args.seed)
 
 """
 pconda
@@ -154,4 +161,30 @@ python3 -u render_dataset.py \
 --headdir fetch_push-goals-no-noise/learner/nonoise_collect_entropy \
 --seed 0
 
+python3 -u render_dataset.py \
+--headdir fetch_push-goals-no-noise/expert \
+--seed 0
+
+python3 -u render_dataset.py \
+--datadir /iris/u/khatch/contrastive_rl/data/fetch/push/seed_10_last_50000 \
+--env_name offline_fetch_push_image-goals-no-noise \
+--seed 0
+
+python3 -u render_dataset.py \
+--datadir /iris/u/khatch/contrastive_rl/data/fetch/fetch_pushsamelocreset-goals-no-noise/expert_diverse/seed_0/recorded_data \
+--env_name offline_fetch_push_image_samelocreset-goals-no-noise
+
+
+python3 -u render_dataset.py \
+--datadir /iris/u/khatch/contrastive_rl/data/fetch/fetch_pushsamelocreset-goals-no-noise/expert/seed_0/recorded_data \
+--env_name offline_fetch_push_image_samelocreset-goals-no-noise
+
+
+python3 -u render_dataset.py \
+--datadir /iris/u/khatch/contrastive_rl/data/fetch/fetch_push-goals-no-noise/expert_diverse/seed_0/recorded_data \
+--env_name offline_fetch_push_image_minimal-goals-no-noise
+
+python3 -u render_dataset.py \
+--datadir /iris/u/khatch/contrastive_rl/data/fetch/push/medium_replay_10_seeds/seed_10 \
+--env_name offline_fetch_push_image_minimal-goals-no-noise
 """

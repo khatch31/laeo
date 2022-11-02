@@ -276,3 +276,81 @@ Solution from here: https://github.com/openai/mujoco-py/issues/390#issuecomment-
 Some also potentially useful things: https://github.com/openai/mujoco-py/issues/187
 Could also try to fix this "libEGL warning: failed to open /dev/dri/renderD129: Permission denied"
 https://github.com/deepmind/dm_control/issues/214
+
+
+================================================================
+assert ports_found
+AssertionError
+================================================================
+
+Traceback (most recent call last):
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 1075, in init
+    wi.setup(kwargs)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 165, in setup
+    self._wl = wandb_setup.setup()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 312, in setup
+    ret = _setup(settings=settings)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 307, in _setup
+    wl = _WandbSetup(settings=settings)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 293, in __init__
+    _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 106, in __init__
+    self._setup()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 234, in _setup
+    self._setup_manager()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 265, in _setup_manager
+    self._manager = wandb_manager._Manager(
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_manager.py", line 108, in __init__
+    self._service.start()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/service/service.py", line 112, in start
+    self._launch_server()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/service/service.py", line 108, in _launch_server
+    assert ports_found
+AssertionError
+wandb: ERROR Abnormal program exit
+Traceback (most recent call last):
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 1075, in init
+    wi.setup(kwargs)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 165, in setup
+    self._wl = wandb_setup.setup()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 312, in setup
+    ret = _setup(settings=settings)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 307, in _setup
+    wl = _WandbSetup(settings=settings)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 293, in __init__
+    _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 106, in __init__
+    self._setup()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 234, in _setup
+    self._setup_manager()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_setup.py", line 265, in _setup_manager
+    self._manager = wandb_manager._Manager(
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_manager.py", line 108, in __init__
+    self._service.start()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/service/service.py", line 112, in start
+    self._launch_server()
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/service/service.py", line 108, in _launch_server
+    assert ports_found
+AssertionError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/iris/u/khatch/preliminary_experiments/model_based_offline_online/jaxrl2_private_fresh/examples/train_offline_pixels_bc_robocloud.py", line 506, in <module>
+    app.run(main)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/absl/app.py", line 308, in run
+    _run_main(main, args)
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/absl/app.py", line 254, in _run_main
+    sys.exit(main(argv))
+  File "/iris/u/khatch/preliminary_experiments/model_based_offline_online/jaxrl2_private_fresh/examples/train_offline_pixels_bc_robocloud.py", line 181, in main
+    wandb_logger = WandBLogger(FLAGS.prefix != '', variant,
+  File "/iris/u/khatch/preliminary_experiments/model_based_offline_online/jaxrl2_private_fresh/jaxrl2/utils/wandb_logger.py", line 109, in __init__
+    wandb.init(
+  File "/iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 1116, in init
+    raise Exception("problem") from error_seen
+Exception: problem
+
+
+changed /iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/service/service.py
+line 42
+from time_max = time.time() + 30 to time_max = time.time() + 300

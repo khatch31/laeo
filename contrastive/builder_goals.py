@@ -42,14 +42,6 @@ import tree
 
 from contrastive.episode_saver_adder import EpisodeAdderSaver
 
-# import os
-# # os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] ='false'
-# # os.environ['XLA_PYTHON_CLIENT_ALLOCATOR']='platform'
-# # os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-# # os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
-# os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = "0.1"
-
-
 class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
   """Contrastive RL builder."""
 

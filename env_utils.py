@@ -132,21 +132,23 @@ def load(env_name):
                       CLASS = fetch_envs.FetchPushImageGoalsOccluded
                   elif "minimal" in env_name:
                       CLASS = fetch_envs.FetchPushImageMinimalGoals
+                  elif "samelocreset" in env_name:
+                      CLASS = fetch_envs.FetchPushImageMinimalSameLocResetGoals
                   else:
                       CLASS = fetch_envs.FetchPushImageGoals
               else:
                   CLASS = fetch_envs.FetchPushImage
           else:
-              # if "push2":
-              #     if "goals" in env_name:
-              #         CLASS = fetch_envs.FetchPushEnv2Goals
-              #     else:
-              #         CLASS = fetch_envs.FetchPushEnv2
-              if "push3":
+              if "push3" in env_name:
                   if "goals" in env_name:
                       CLASS = fetch_envs.FetchPushEnv3Goals
                   else:
                       CLASS = fetch_envs.FetchPushEnv3
+              elif "pushsamelocreset" in env_name:
+                  if "goals" in env_name:
+                      CLASS = fetch_envs.FetchPushEnvSameLocResetGoals
+                  else:
+                      CLASS = fetch_envs.FetchPushEnvSameLocReset
               else:
                   if "goals" in env_name:
                       CLASS = fetch_envs.FetchPushEnvGoals
@@ -161,6 +163,9 @@ def load(env_name):
           kwargs["add_goal_noise"] = False
       elif "goals" in env_name:
           kwargs["add_goal_noise"] = True
+
+      if "natg" in env_name:
+          kwargs["use_natural_goal"] = True
 
   elif env_name.startswith('ant_'):
     _, map_name = env_name.split('_')

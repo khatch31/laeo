@@ -21,7 +21,6 @@ from gym.envs.robotics.fetch import reach
 import numpy as np
 
 
-
 class ObsDictWrapper:
     def __init__(self, env):
         self._env = env
@@ -42,6 +41,7 @@ class FetchReachEnv(reach.FetchReachEnv):
         high=np.full((20,), np.inf),
         dtype=np.float32)
     self.observation_space = self._new_observation_space
+
 
   def reset(self):
     self.observation_space = self._old_observation_space
@@ -90,7 +90,9 @@ class FetchReachEnvGoals(FetchReachEnv):
       return None
 
 class FetchPushImageMinimal(push.FetchPushEnv):
-  def __init__(self, *args, **kwargs):
+  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False, same_block_start_pos=False):
+    self._camera_name = camera
+
     super(FetchPushImageMinimal, self).__init__()
     # self._old_observation_space = self.observation_space
     # self._new_observation_space = gym.spaces.Box(
@@ -106,7 +108,6 @@ class FetchPushImageMinimal(push.FetchPushEnv):
     self.observation_space = self._new_observation_space
     self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
 
-
   def reset(self):
     self.observation_space = self._old_observation_space
     s = super(FetchPushImageMinimal, self).reset()
@@ -119,6 +120,7 @@ class FetchPushImageMinimal(push.FetchPushEnv):
     #   return self.reset()
 
     img = self.image_obs()
+    self._goal_img = np.zeros_like(img)
     return np.concatenate([img, np.zeros_like(img)])
 
   def step(self, action):
@@ -150,6 +152,25 @@ class FetchPushImageMinimal(push.FetchPushEnv):
       img = self.render(mode='rgb_array', height=64, width=64)
       return img.flatten()
 
+  def _viewer_setup(self):
+    super(FetchPushImageMinimal, self)._viewer_setup()
+    if self._camera_name == 'camera1':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 180
+      self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera2':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.65
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
+    elif self._camera_name == 'camera3':
+      self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+      self.viewer.cam.distance = 0.9
+      self.viewer.cam.azimuth = 90
+      self.viewer.cam.elevation = -40
+    else:
+      raise NotImplementedError
 
 class FetchPushImageMinimalGoals(FetchPushImageMinimal):
     def __init__(self, *args, add_goal_noise=False, **kwargs):
@@ -165,11 +186,46 @@ class FetchPushImageMinimalGoals(FetchPushImageMinimal):
     def get_expert_goals(self):
         return None
 
+class FetchPushImageMinimalSameLocReset(FetchPushImageMinimal):
+    def reset(self):
+      self.observation_space = self._old_observation_space
+      super(FetchPushImageMinimalSameLocReset, self).reset()
+      self.observation_space = self._new_observation_space
+
+      object_qpos = np.array([1.21847399e+00,
+                              6.17473012e-01,
+                              4.24702091e-01,
+                              1.00000000e+00,
+                              -1.92607042e-07,
+                              2.96318526e-07,
+                              -2.88376574e-16])
+
+      self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+
+      for _ in range(10):
+        super(FetchPushImageMinimalSameLocReset, self).step(np.array([0.0, 0.0, 0.0, 0.0]))
+
+      img = self.image_obs()
+      return np.concatenate([img, np.zeros_like(img)])
+
+class FetchPushImageMinimalSameLocResetGoals(FetchPushImageMinimalSameLocReset):
+    def __init__(self, *args, add_goal_noise=False, **kwargs):
+        self._add_goal_noise = add_goal_noise
+        super(FetchPushImageMinimalSameLocResetGoals, self).__init__(*args, **kwargs)
+
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.9, 0.42469975])
+        if self._add_goal_noise:
+            goal += np.random.normal(scale=0.01, size=goal.shape)
+        return goal
+
+    def get_expert_goals(self):
+        return None
 
 class FetchPushEnv(push.FetchPushEnv):
   """Wrapper for the FetchPush environment."""
 
-  def __init__(self):
+  def __init__(self, use_natural_goal=False):
     super(FetchPushEnv, self).__init__()
     self._old_observation_space = self.observation_space
     self._new_observation_space = gym.spaces.Box(
@@ -177,6 +233,7 @@ class FetchPushEnv(push.FetchPushEnv):
         high=np.full((50,), np.inf),
         dtype=np.float32)
     self.observation_space = self._new_observation_space
+    self._use_natural_goal = use_natural_goal
 
   def reset(self):
     self.observation_space = self._old_observation_space
@@ -201,6 +258,16 @@ class FetchPushEnv(push.FetchPushEnv):
     assert np.all(goal_pos_1 == goal_pos_2)
     s = observation['observation']
     g = np.zeros_like(s)
+
+    if self._use_natural_goal:
+        g = np.array([1.34207559e+00,  9.35664892e-01,  4.19158936e-01,  1.38074136e+00,
+                  9.01960373e-01,  4.24771219e-01,  3.86658683e-02, -3.37044820e-02,
+                  5.61230257e-03,  0.00000000e+00,  0.00000000e+00,  8.61858207e-05,
+                 -2.82435009e-04, -1.29339844e-01, -6.43660547e-04, -2.83353089e-04,
+                  1.36204704e-04, -4.84256343e-05,  1.58692084e-04,  1.01813814e-13,
+                  6.47627865e-04,  2.84563721e-04, -1.28721018e-04,  8.95160338e-06,
+                  2.86602793e-04])
+
     g[:start_index] = observation['desired_goal']
     g[start_index:end_index] = observation['desired_goal']
     return np.concatenate([s, g]).astype(np.float32)
@@ -222,6 +289,65 @@ class FetchPushEnvGoals(FetchPushEnv):
         # goals[:, 3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
         # goals[:, :3] = self._sample_goal()
         # return goals
+        return None
+
+class FetchPushEnvSameLocReset(FetchPushEnv):
+    def __init__(self, *args, camera='camera2', **kwargs):
+        self._camera_name = camera
+        super(FetchPushEnvSameLocReset, self).__init__(*args, **kwargs)
+        self.sim.model.geom_rgba[1:5] = 0  # Hide the lasers
+
+    def reset(self):
+        super(FetchPushEnvSameLocReset, self).reset()
+        object_qpos = np.array([1.21847399e+00,
+                                6.17473012e-01,
+                                4.24702091e-01,
+                                1.00000000e+00,
+                                -1.92607042e-07,
+                                2.96318526e-07,
+                                -2.88376574e-16])
+        self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+
+        for _ in range(10):
+          super(FetchPushEnvSameLocReset, self).step(np.array([0.0, 0.0, 0.0, 0.0]))
+
+        s = self._get_obs()
+        obs = self.observation(s)
+        return obs
+
+
+    def _viewer_setup(self):
+      super(FetchPushEnvSameLocReset, self)._viewer_setup()
+      if self._camera_name == 'camera1':
+        self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])
+        self.viewer.cam.distance = 0.9
+        self.viewer.cam.azimuth = 180
+        self.viewer.cam.elevation = -40
+      elif self._camera_name == 'camera2':
+        self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+        self.viewer.cam.distance = 0.65
+        self.viewer.cam.azimuth = 90
+        self.viewer.cam.elevation = -40
+      elif self._camera_name == 'camera3':
+        self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
+        self.viewer.cam.distance = 0.9
+        self.viewer.cam.azimuth = 90
+        self.viewer.cam.elevation = -40
+      else:
+        raise NotImplementedError
+
+class FetchPushEnvSameLocResetGoals(FetchPushEnvSameLocReset):
+    def __init__(self, *args, add_goal_noise=False, **kwargs):
+        self._add_goal_noise = add_goal_noise
+        super(FetchPushEnvSameLocResetGoals, self).__init__(*args, **kwargs)
+
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.9, 0.42469975])
+        if self._add_goal_noise:
+            goal += np.random.normal(scale=0.01, size=goal.shape)
+        return goal
+
+    def get_expert_goals(self):
         return None
 
 class FetchReachImage(reach.FetchReachEnv):
@@ -419,6 +545,7 @@ class FetchPushImage(push.FetchPushEnv):
     img = self.render(mode='rgb_array', height=64, width=64)
     return img.flatten()
 
+
   def _viewer_setup(self):
     super(FetchPushImage, self)._viewer_setup()
     if self._camera_name == 'camera1':
@@ -456,7 +583,7 @@ class FetchPushImageGoals(FetchPushImage):
 class FetchPushEnv3(push.FetchPushEnv):
   """Wrapper for the FetchPush environment with image observations."""
 
-  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False, same_block_start_pos=False):
+  def __init__(self, camera='camera2', start_at_obj=True, rand_y=False, same_block_start_pos=False, use_natural_goal=False):
     if same_block_start_pos:
         assert not rand_y
     self._start_at_obj = start_at_obj
@@ -484,6 +611,10 @@ class FetchPushEnv3(push.FetchPushEnv):
 
     print("self._same_block_start_pos:", self._same_block_start_pos)
     print("self._rand_y:", self._rand_y)
+
+    self._use_natural_goal = use_natural_goal
+
+    print("self._use_natural_goal:", self._use_natural_goal)
 
   def reset_metrics(self):
     self._dist_vec = []
@@ -564,9 +695,10 @@ class FetchPushEnv3(push.FetchPushEnv):
     return self.state_observation(s), r, done, info
 
   def observation(self, observation):
-    self.sim.data.site_xpos[0] = 1_000_000
-    img = self.render(mode='rgb_array', height=64, width=64)
-    return img.flatten()
+    # self.sim.data.site_xpos[0] = 1_000_000
+    # img = self.render(mode='rgb_array', height=64, width=64)
+    # return img.flatten()
+    raise NotImplementedError
 
   def _viewer_setup(self):
     super(FetchPushEnv3, self)._viewer_setup()
@@ -596,8 +728,23 @@ class FetchPushEnv3(push.FetchPushEnv):
     assert np.all(goal_pos_1 == goal_pos_2)
     s = observation['observation']
     g = np.zeros_like(s)
+
+    if self._use_natural_goal:
+        g = np.array([1.34207559e+00,  9.35664892e-01,  4.19158936e-01,  1.38074136e+00,
+                  9.01960373e-01,  4.24771219e-01,  3.86658683e-02, -3.37044820e-02,
+                  5.61230257e-03,  0.00000000e+00,  0.00000000e+00,  8.61858207e-05,
+                 -2.82435009e-04, -1.29339844e-01, -6.43660547e-04, -2.83353089e-04,
+                  1.36204704e-04, -4.84256343e-05,  1.58692084e-04,  1.01813814e-13,
+                  6.47627865e-04,  2.84563721e-04, -1.28721018e-04,  8.95160338e-06,
+                  2.86602793e-04])
+
     g[:start_index] = observation['desired_goal']
     g[start_index:end_index] = observation['desired_goal']
+
+
+
+    # g[3:] = np.array([0, 0, -5.9625151e-04, -3.4385541e-04, 4.1548879e-04, 1.5108634e-04, 2.9286076e-07])
+
     return np.concatenate([s, g]).astype(np.float32)
 
 class FetchPushEnv3Goals(FetchPushEnv3):

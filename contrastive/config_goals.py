@@ -96,7 +96,8 @@ class ContrastiveConfigGoals:
   hardcode_r: float = None
   shift_learned_reward: bool = False
 
-  val_interval: int = 2 # 100
+  val_interval: int = 100
+  mse_bc_loss: bool = False
 
 def target_entropy_from_env_spec(
     spec,

@@ -54,7 +54,6 @@ def apply_policy_and_sample(
     return sample_fn(networks.policy_network.apply(params, obs), key)
   return apply_and_sample
 
-
 def make_networks(
     spec,
     obs_dim,
