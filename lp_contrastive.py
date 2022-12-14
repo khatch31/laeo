@@ -16,20 +16,28 @@
 # python3
 r"""Example running contrastive RL in JAX.
 
-
-export LD_LIBRARY_PATH=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
 
-python3 -u lp_contrastive.py --lp_launch_type=local_mt
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
+
+
+python3 -u lp_contrastive.py \
+--lp_launch_type=local_mt \
+--env_name=fetch_reach \
+--logdir=/iris/u/khatch/contrastive_rl/trash_results
 
 Run using multi-processing (required for image-based experiments):
   python lp_contrastive.py --lp_launch_type=local_mp
 
 Run using multi-threading
   python lp_contrastive.py --lp_launch_type=local_mt
-
-
 """
 import functools
 from typing import Any, Dict
@@ -40,8 +48,47 @@ import contrastive
 from contrastive import utils as contrastive_utils
 import launchpad as lp
 
+import os
+import shutil
+
+from contrastive.wandb_logger import WANDBLogger
+
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
+flags.DEFINE_string('env_name', None, 'Env_name.')
+flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
+flags.DEFINE_string('description', "default", 'description.')
+flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
+flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
+flags.DEFINE_float('entropy_coefficient', None, 'description.')
+flags.DEFINE_integer('num_actors', 4, 'description.')
+
+flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
+flags.DEFINE_integer('batch_size', 256, 'description.')
+flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
+flags.DEFINE_integer('repr_dim', 64, 'description.')
+flags.DEFINE_integer('max_replay_size', 1000000, 'description.')
+flags.DEFINE_multi_integer('hidden_layer_sizes', [256, 256], 'description.')
+flags.DEFINE_float('actor_min_std', 1e-6, 'description.')
+
+flags.DEFINE_bool('save_data', False, 'description.')
+flags.DEFINE_string('data_load_dir', None, 'description.')
+flags.DEFINE_integer('max_checkpoints_to_keep', 1, 'description.')
+
+flags.DEFINE_float('bc_coef', 0, 'description.')
+flags.DEFINE_bool('twin_q', True, 'description.')
+
+flags.DEFINE_bool('save_sim_state', False, 'description.')
+flags.DEFINE_bool('preload_buffer', False, 'description.')
+
+
+flags.DEFINE_integer('seed', 0, 'description.')
+
+flags.DEFINE_integer('num_evaluators', 1, 'description.')
+
+
 
 
 @functools.lru_cache()
@@ -53,30 +100,38 @@ def get_env(env_name, start_index, end_index):
 def get_program(params):
   """Constructs the program."""
 
+  # if FLAGS.save_data:
+  #     assert params["num_actors"] == 1
+
   env_name = params['env_name']
   seed = params.pop('seed')
 
   if params.get('use_image_obs', False) and not params.get('local', False):
-    print('WARNING: overwriting parameters for image-based tasks.')
-    params['num_sgd_steps_per_step'] = 16
+  #   print('WARNING: overwriting parameters for image-based tasks.')
+  #   params['num_sgd_steps_per_step'] = 16
     params['prefetch_size'] = 16
-    params['num_actors'] = 10
+    # params['num_actors'] = 10
 
-  if env_name.startswith('offline_ant'):
+  if env_name.startswith('offline'):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
+    assert not FLAGS.save_data
 
   config = contrastive.ContrastiveConfig(**params)
+
+  print("config.num_sgd_steps_per_step:", config.num_sgd_steps_per_step)
+  print("config.max_number_of_steps:", config.max_number_of_steps)
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
 
   env_factory_no_extra = lambda seed: env_factory(seed)[0]  # Remove obs_dim.
-  environment, obs_dim = get_env(env_name, config.start_index,
-                                 config.end_index)
+  environment, obs_dim = get_env(env_name, config.start_index, config.end_index)
+  print("environment:", environment)
   assert (environment.action_spec().minimum == -1).all()
   assert (environment.action_spec().maximum == 1).all()
+  environment.reset()
   config.obs_dim = obs_dim
   config.max_episode_steps = getattr(environment, '_step_limit') + 1
   if env_name == 'offline_ant_umaze_diverse':
@@ -86,7 +141,22 @@ def get_program(params):
       contrastive.make_networks, obs_dim=obs_dim, repr_dim=config.repr_dim,
       repr_norm=config.repr_norm, twin_q=config.twin_q,
       use_image_obs=config.use_image_obs,
-      hidden_layer_sizes=config.hidden_layer_sizes)
+      hidden_layer_sizes=config.hidden_layer_sizes,
+      actor_min_std=config.actor_min_std)
+
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner", FLAGS.description, f"seed_{seed}")
+
+  group_name="_".join([params["env_name"], "learner", FLAGS.description])
+  name=f"seed_{seed}"
+  wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
+                            params,
+                            group_name,
+                            name,
+                            FLAGS.project)
+
+  if FLAGS.replay_buffer_load_dir is not None:
+      os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
+      shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
   agent = contrastive.DistributedContrastive(
       seed=seed,
@@ -95,7 +165,13 @@ def get_program(params):
       config=config,
       num_actors=config.num_actors,
       log_to_bigtable=True,
-      max_number_of_steps=config.max_number_of_steps)
+      max_number_of_steps=config.max_number_of_steps,
+      logdir=logdir,
+      wandblogger=wandblogger,
+      save_data=FLAGS.save_data,
+      save_sim_state=FLAGS.save_sim_state,
+      data_save_dir=os.path.join(logdir, "recorded_data"),
+      data_load_dir=FLAGS.data_load_dir)
   return agent.build()
 
 
@@ -117,7 +193,10 @@ def main(_):
   #                             medium_play,medium_diverse,
   #                             large_play,large_diverse}
   # env_name = 'sawyer_window' ###===###
-  env_name = 'point_Cross' ###---###
+  # env_name = 'point_Cross' ###---###
+  if FLAGS.env_name:
+      env_name = FLAGS.env_name
+
   params = {
       'seed': 0,
       'use_random_actor': True,
@@ -126,6 +205,32 @@ def main(_):
       'max_number_of_steps': 1_000_000,
       'use_image_obs': 'image' in env_name,
   }
+
+  params["max_checkpoints_to_keep"] = FLAGS.max_checkpoints_to_keep
+  params["entropy_coefficient"] = FLAGS.entropy_coefficient
+  params["num_actors"] = FLAGS.num_actors
+
+  params["max_number_of_steps"] = FLAGS.max_number_of_steps
+  params["batch_size"] = FLAGS.batch_size
+  params["actor_learning_rate"] = FLAGS.actor_learning_rate
+  params["learning_rate"] = FLAGS.learning_rate
+  params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
+  params["repr_dim"] = FLAGS.repr_dim
+  params["max_replay_size"] = FLAGS.max_replay_size
+  params["hidden_layer_sizes"] = FLAGS.hidden_layer_sizes
+  params["actor_min_std"] = FLAGS.actor_min_std
+
+  params["bc_coef"] = FLAGS.bc_coef
+  params["twin_q"] = FLAGS.twin_q
+
+  params["seed"] = FLAGS.seed
+  params["num_evaluators"] = FLAGS.num_evaluators
+  params["preload_buffer"] = FLAGS.preload_buffer
+
+
+
+
+
   if 'ant_' in env_name:
     params['end_index'] = 2
 
@@ -149,6 +254,17 @@ def main(_):
     params['use_gcbc'] = True
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
+
+  if env_name.startswith('offline') or params["preload_buffer"]:
+    assert FLAGS.data_load_dir is not None
+
+    params.update({
+        # Effectively remove the rate-limiter by using very large values.
+        'samples_per_insert': 1_000_000,
+        'samples_per_insert_tolerance_rate': 100_000_000.0,
+        'random_goals': 0.0,
+    })
+
 
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):

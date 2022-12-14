@@ -30,6 +30,8 @@ import jax.numpy as jnp
 import optax
 import reverb
 
+from jax.experimental import host_callback as hcb
+from contrastive.default_logger import make_default_logger
 
 class TrainingState(NamedTuple):
   """Contains training state for the learner."""
@@ -78,6 +80,11 @@ class ContrastiveLearner(acme.Learner):
     self._num_sgd_steps_per_step = config.num_sgd_steps_per_step
     self._obs_dim = config.obs_dim
     self._use_td = config.use_td
+
+    print("\nadaptive_entropy_coefficient:", adaptive_entropy_coefficient)
+    print("self._num_sgd_steps_per_step:", self._num_sgd_steps_per_step)
+    print()
+
     if adaptive_entropy_coefficient:
       # alpha is the temperature parameter that determines the relative
       # importance of the entropy term versus the reward.
@@ -255,6 +262,16 @@ class ContrastiveLearner(acme.Learner):
           q_action = jnp.min(q_action, axis=-1)
         actor_loss = alpha * log_prob - jnp.diag(q_action)
 
+        assert 0.0 <= config.bc_coef <= 1.0
+        if config.bc_coef > 0:
+          orig_action = transitions.action
+          if config.random_goals == 0.5:
+            orig_action = jnp.concatenate([orig_action, orig_action], axis=0)
+
+          bc_loss = -1.0 * networks.log_prob(dist_params, orig_action)
+          actor_loss = (config.bc_coef * bc_loss
+                        + (1 - config.bc_coef) * actor_loss)
+
       return jnp.mean(actor_loss)
 
     alpha_grad = jax.value_and_grad(alpha_loss)
@@ -336,9 +353,11 @@ class ContrastiveLearner(acme.Learner):
 
     # General learner book-keeping and loggers.
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.make_default_logger(
+    self._logger = logger or make_default_logger(
+        "~/acme",
         'learner', asynchronous=True, serialize_fn=utils.fetch_devicearray,
-        time_delta=10.0)
+        time_delta=10.0,
+        wandblogger=None)
 
     # Iterator on demonstration transitions.
     self._iterator = iterator
@@ -375,7 +394,23 @@ class ContrastiveLearner(acme.Learner):
       return state
 
     # Create initial state.
+
+
     self._state = make_initial_state(rng)
+
+
+    # if state_load_path is not None:
+    #     reader = tf.train.load_checkpoint(state_load_path)
+    #     params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
+    #     state = dill.loads(params)
+    #     self.restore(state)
+    #
+        # reader = tf.train.load_checkpoint(state_load_path)
+        # params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
+        # state = dill.loads(params)
+        # self.restore_critic_only(state)
+
+
 
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online
@@ -415,4 +450,10 @@ class ContrastiveLearner(acme.Learner):
     return self._state
 
   def restore(self, state):
+    print("\n\nRestoring learner\n\n")
     self._state = state
+
+  # def restore_critic_only(self, state):
+  #     self._state.q_params = state.q_params
+  #     self._state.target_q_params = state.target_q_params
+  #     self._state.q_optimizer_state = state.q_optimizer_state

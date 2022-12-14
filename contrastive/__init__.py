@@ -18,6 +18,10 @@
 from contrastive.agents import DistributedContrastive
 from contrastive.builder import ContrastiveBuilder
 from contrastive.config import ContrastiveConfig
+from contrastive.config_goals import ContrastiveConfigGoals
+from contrastive.config_goals_td3 import ContrastiveConfigGoalsTD3
+from contrastive.config_reward import ContrastiveConfigReward
+from contrastive.config_goals_frozen_critic import ContrastiveConfigGoalsFrozenCritic
 from contrastive.config import target_entropy_from_env_spec
 from contrastive.learning import ContrastiveLearner
 from contrastive.networks import apply_policy_and_sample
@@ -26,8 +30,23 @@ from contrastive.networks import make_networks
 
 
 ###===###
-
 from contrastive.learning_goals import ContrastiveLearnerGoals
 from contrastive.agents_goals import DistributedContrastiveGoals
 from contrastive.builder_goals import ContrastiveBuilderGoals
+
+from contrastive.learning_reward import ContrastiveLearnerReward
+from contrastive.agents_reward import DistributedContrastiveReward
+from contrastive.builder_reward import ContrastiveBuilderReward
+
+from contrastive.learning_goals_frozen_critic import ContrastiveLearnerGoalsFrozenCritic
+from contrastive.agents_goals_frozen_critic import DistributedContrastiveGoalsFrozenCritic
+from contrastive.builder_goals_frozen_critic import ContrastiveBuilderGoalsFrozenCritic
+
+# from contrastive.learning_goals_td3 import ContrastiveLearnerGoalsTD3
+from contrastive.agents_goals_td3 import DistributedContrastiveGoalsTD3
+from contrastive.builder_goals_td3 import ContrastiveBuilderGoalsTD3
+
+# from contrastive.losses import sigmoid_positive_unlabeled_loss
+
+# from contrastive.episode_saver_adder import EpisodeAdderSaver
 ###---###

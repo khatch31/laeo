@@ -42,9 +42,6 @@ from contrastive.default_logger import make_default_logger
 from glob import glob
 import os
 
-import time
-
-
 ActorId = int
 AgentNetwork = Any
 PolicyNetwork = Any
@@ -137,7 +134,7 @@ class CheckpointingConfig:
   # add_uid: bool = True
 
 
-class DistributedLayout:
+class DistributedLayoutGoalsFrozenCritic:
   """Program definition for a distributed agent based on a builder."""
 
   def __init__(
@@ -206,45 +203,15 @@ class DistributedLayout:
       random_key,
       replay,
       counter,
+      expert_goals, ###===###
+      critic_checkpoint_state, ###---###
   ):
     """The Learning part of the agent."""
 
     if self._builder._config.env_name.startswith('offline_ant'):  # pytype: disable=attribute-error, pylint: disable=protected-access
       adder = self._builder.make_adder(replay, force_no_save=True)
       env = self._environment_factory(0)
-      print("env:", env)
-      # dataset = env.get_dataset()  # pytype: disable=attribute-error
-      # import gym
-      # dataset = gym.make("antmaze-umaze-v2").get_dataset()
-      #
-      # # env.observation_space.shape = (20,)
-      # # env.action_space.shape = (4,)
-      #
-      # for t in tqdm.trange(dataset['observations'].shape[0]):
-      #   discount = 1.0
-      #   if t == 0 or dataset['timeouts'][t - 1]:
-      #     step_type = dm_env.StepType.FIRST
-      #   elif dataset['timeouts'][t]:
-      #     step_type = dm_env.StepType.LAST
-      #     discount = 0.0
-      #   else:
-      #     step_type = dm_env.StepType.MID
-      #
-      #   ts = dm_env.TimeStep(
-      #       step_type=step_type,
-      #       reward=dataset['rewards'][t],
-      #       discount=discount,
-      #       observation=dataset['observations'][t][:env.observation_space.shape[0]],
-      #   )
-      #   if t == 0 or dataset['timeouts'][t - 1]:
-      #     adder.add_first(ts)  # pytype: disable=attribute-error
-      #   else:
-      #     # adder.add(action=dataset['actions'][t-1], next_timestep=ts)  # pytype: disable=attribute-error
-      #     adder.add(action=dataset['actions'][t-1][:env.action_space.shape[0]], next_timestep=ts)
-      #
-      #   if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
-      #     break
-
+      dataset = env.get_dataset()  # pytype: disable=attribute-error
       for t in tqdm.trange(dataset['observations'].shape[0]):
         discount = 1.0
         if t == 0 or dataset['timeouts'][t - 1]:
@@ -270,60 +237,56 @@ class DistributedLayout:
         if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
           break
 
-    use_image_obs = self._builder._config.use_image_obs
-    # if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
-    if "offline" in self._builder._config.env_name or self._builder._config.preload_buffer:
+    if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
 
-        episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
+        if expert_goals is None:
+            expert_goals_list = []
+
+        episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
         episode_files = sorted(episode_files, key=get_ep_no)
-        # episode_files = sorted(episode_files, key=get_ep_no, reverse=True) # j = 0
-
-        train_examples_added = 0
-
         # j = 0
-        for ep_idx, episode_file in tqdm.tqdm(enumerate(episode_files), total=len(episode_files), desc="Loading episode files"):
+        for episode_file in tqdm.tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
             # j += 1
-            # if j > 500:
+            # if j > 1000:
             #     break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
                 episode = {k: episode[k] for k in episode.keys()}
 
             assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
-            if use_image_obs:
-                assert len(episode["observation"]) == len(episode["image"])
+
+            if expert_goals is None and episode["reward"].sum() > 0:
+                success_idxs = np.nonzero(episode["reward"])[0]
+                # success_observations = episode["observation"][success_idxs]
+                for idx in success_idxs:
+                    expert_goals_list.append(episode["observation"][idx][:self._obs_dim])
+
 
             for t in range(episode["observation"].shape[0]):
-                if use_image_obs:
-                    obs = np.concatenate((episode['image'][t], episode['goal_image']), axis=0)#.astype(np.float32)
-                else:
-                    obs = episode['observation'][t]
-
                 ts = dm_env.TimeStep(
                     step_type=episode["step_type"][t],
                     reward=episode['reward'][t],
                     discount=episode["discount"][t],
-                    observation=obs,
+                    observation=episode['observation'][t],
                 )
-
-                # Add to train replay buffer
-                train_examples_added += 1
                 if t == 0:
                     assert episode["step_type"][t] == dm_env.StepType.FIRST
                     adder.add_first(ts)  # pytype: disable=attribute-error
                 else:
-                    if t == episode["observation"].shape[0] - 1:
-                        assert episode["step_type"][t] == dm_env.StepType.LAST
-                    else:
-                        assert episode["step_type"][t] == dm_env.StepType.MID
+                    assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
+                    adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
 
-                    adder.add(action=episode['action'][t].astype(np.float32), next_timestep=ts)  # pytype: disable=attribute-error
-                # time.sleep(0.001)
+        if expert_goals is None:
+            N_EXAMPLES = 200
+            idxs = np.arange(len(expert_goals_list))
+            np.random.shuffle(idxs)
+            idxs = idxs[:N_EXAMPLES]
+            expert_goals = [expert_goals_list[i] for i in idxs]
+            expert_goals = np.stack(expert_goals)
 
-        print(f"\n\ntrain_examples_added: {train_examples_added}")
 
     iterator = self._builder.make_dataset_iterator(replay)
 
@@ -350,11 +313,10 @@ class DistributedLayout:
     counter = counting.Counter(counter, 'learner')
 
     learner = self._builder.make_learner(random_key, networks, iterator, replay,
-                                         counter) ###===### ###---###
+                                         counter, expert_goals, critic_checkpoint_state) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
-
     # Return the learning agent.
     return savers.CheckpointingRunner(
         learner,
@@ -390,10 +352,11 @@ class DistributedLayout:
                                             logger, observers=self._observers)
 
   def coordinator(self, counter, max_actor_steps):
-    if self._builder._config.env_name.startswith('offline'):  # pytype: disable=attribute-error, pylint: disable=protected-access
+    if self._builder._config.env_name.startswith('offline_ant') or self._num_actors == 0:  # pytype: disable=attribute-error, pylint: disable=protected-access
       steps_key = 'learner_steps'
     else:
       steps_key = 'actor_steps'
+
     return lp_utils.StepsLimiter(counter, max_actor_steps, steps_key=steps_key)
 
   def build(self, name='agent', program = None):
@@ -406,14 +369,11 @@ class DistributedLayout:
     def r_checpointer():
         import os
         from reverb.platform.checkpointers_lib import DefaultCheckpointer
-        # return DefaultCheckpointer("/iris/u/khatch/contrastive_rl/results/trash_results/fetch_reach/learner/default/seed_0/checkpoints/replay_buffer")
         return DefaultCheckpointer(os.path.join(self._logdir, "checkpoints", "replay_buffer"))
 
-    if self._builder._config.env_name.startswith('offline'):
-        replay_node = lp.ReverbNode(self.replay)
-    else:
-        replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
+    replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
 
+    # replay_node = lp.ReverbNode(self.replay)
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:
         replay = replay_node.create_handle()
@@ -428,7 +388,7 @@ class DistributedLayout:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter) ###===### ###---###
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals, self._critic_checkpoint_state) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()

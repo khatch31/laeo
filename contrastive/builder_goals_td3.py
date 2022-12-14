@@ -1,49 +1,40 @@
-# coding=utf-8
-# Copyright 2022 The Google Research Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""TD3 Builder."""
+from typing import Iterator, List, Optional
 
-"""Contrastive RL builder."""
-import functools
-from typing import Callable, Iterator, List, Optional
-
-import acme
 from acme import adders
 from acme import core
 from acme import specs
-from acme import types
-# from acme.adders import reverb as adders_reverb
+from acme.adders import reverb as adders_reverb
 from acme.agents.jax import actor_core as actor_core_lib
 from acme.agents.jax import actors
 from acme.agents.jax import builders
+from acme.agents.jax.td3 import config as td3_config
+# from acme.agents.jax.td3 import learning
+import contrastive.learning_td3 as learning
+# from acme.agents.jax.td3 import networks as td3_networks
+from contrastive import networks_td3 as td3_networks ###@@@###
+from acme.datasets import reverb as datasets
 from acme.jax import networks as networks_lib
+from acme.jax import utils
 from acme.jax import variable_utils
 from acme.utils import counting
 from acme.utils import loggers
-from contrastive import config as contrastive_config
-from contrastive import learning_goals
-from contrastive import networks as contrastive_networks
-from contrastive import utils as contrastive_utils
+import jax
 import optax
 import reverb
 from reverb import rate_limiters
+
+from contrastive import utils as contrastive_utils ###@@@###
+from contrastive.episode_saver_adder import EpisodeAdderSaver
 import tensorflow as tf
+from acme import types
 import tree
 
 from contrastive.episode_saver_adder import EpisodeAdderSaver
 
-class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
-  """Contrastive RL builder."""
+
+class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
+  """TD3 Builder."""
 
   def __init__(
       self,
@@ -52,16 +43,14 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       save_data=False,
       data_save_dir=None,
   ):
-    """Creates a contrastive RL learner, a behavior policy and an eval actor.
-
+    """Creates a TD3 learner, a behavior policy and an eval actor.
     Args:
-      config: a config with contrastive RL hyperparameters
-      logger_fn: a logger factory for the learner
+      config: a config with TD3 hps
     """
     self._config = config
-    self._logger_fn = logger_fn
+    self._logger_fn = logger_fn ###@@@###
     self._save_data = save_data
-    self._data_save_dir = data_save_dir
+    self._data_save_dir = data_save_dir ###---###
 
   def make_learner(
       self,
@@ -73,28 +62,36 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       counter = None,
       expert_goals=None, ###===### ###---###
   ):
-    # Create optimizers
-    policy_optimizer = optax.adam(
-        learning_rate=self._config.actor_learning_rate, eps=1e-7)
-    q_optimizer = optax.adam(learning_rate=self._config.learning_rate, eps=1e-7)
+    critic_optimizer = optax.adam(self._config.critic_learning_rate)
+    twin_critic_optimizer = optax.adam(self._config.critic_learning_rate)
+    policy_optimizer = optax.adam(self._config.policy_learning_rate)
 
-    # r_optimizer = optax.adam(learning_rate=self._config.reward_learning_rate, eps=1e-7)
+    if self._config.policy_gradient_clipping is not None:
+      policy_optimizer = optax.chain(
+          optax.clip_by_global_norm(self._config.policy_gradient_clipping),
+          policy_optimizer)
 
-    return learning_goals.ContrastiveLearnerGoals(
+    r_optimizer = optax.adam(self._config.reward_learning_rate)
+
+    return learning.TD3Learner( ###@@@###
         networks=networks,
-        rng=random_key,
+        random_key=random_key,
+        discount=self._config.discount,
+        target_sigma=self._config.target_sigma,
+        noise_clip=self._config.noise_clip,
         policy_optimizer=policy_optimizer,
-        q_optimizer=q_optimizer,
-        # r_optimizer=r_optimizer,
+        critic_optimizer=critic_optimizer,
+        twin_critic_optimizer=twin_critic_optimizer,
+        r_optimizer=r_optimizer,
+        num_sgd_steps_per_step=self._config.num_sgd_steps_per_step,
+        use_sarsa_target=self._config.use_sarsa,
+        bc_alpha=self._config.bc_alpha,
         iterator=dataset,
         val_iterator=val_dataset,
-        counter=counter,
         logger=self._logger_fn(),
-        obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,
-                                      start_index=self._config.start_index,
-                                      end_index=self._config.end_index),
         config=self._config,
-        expert_goals=expert_goals) ###===### ###---###
+        counter=counter,
+        expert_goals=expert_goals)
 
   def make_actor(
       self,
@@ -109,12 +106,12 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
                                                     device='cpu')
     if self._config.use_random_actor:
       # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
-      ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
-      # ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
+      # ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
+      ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
     else:
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
-      ACTOR = contrastive_utils.NoGoalActor
-      # ACTOR = contrastive_utils.ZeroGoalActor
+      # ACTOR = contrastive_utils.NoGoalActor
+      ACTOR = contrastive_utils.ZeroGoalActor
     return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=True)
 
   def make_replay_tables(

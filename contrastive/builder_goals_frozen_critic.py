@@ -31,7 +31,7 @@ from acme.jax import variable_utils
 from acme.utils import counting
 from acme.utils import loggers
 from contrastive import config as contrastive_config
-from contrastive import learning_goals
+from contrastive import learning_goals_frozen_critic
 from contrastive import networks as contrastive_networks
 from contrastive import utils as contrastive_utils
 import optax
@@ -40,15 +40,18 @@ from reverb import rate_limiters
 import tensorflow as tf
 import tree
 
+
 from contrastive.episode_saver_adder import EpisodeAdderSaver
 
-class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
+
+class ContrastiveBuilderGoalsFrozenCritic(builders.ActorLearnerBuilder):
   """Contrastive RL builder."""
 
   def __init__(
       self,
       config,
       logger_fn = lambda: None,
+      critic_checkpoint_state=None,
       save_data=False,
       data_save_dir=None,
   ):
@@ -68,33 +71,29 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       random_key,
       networks,
       dataset,
-      val_dataset,
       replay_client = None,
       counter = None,
-      expert_goals=None, ###===### ###---###
+      expert_goals=None, ###===###
+      critic_checkpoint_state=None, ###---###
   ):
     # Create optimizers
     policy_optimizer = optax.adam(
         learning_rate=self._config.actor_learning_rate, eps=1e-7)
     q_optimizer = optax.adam(learning_rate=self._config.learning_rate, eps=1e-7)
-
-    # r_optimizer = optax.adam(learning_rate=self._config.reward_learning_rate, eps=1e-7)
-
-    return learning_goals.ContrastiveLearnerGoals(
+    return learning_goals_frozen_critic.ContrastiveLearnerGoalsFrozenCritic(
         networks=networks,
         rng=random_key,
         policy_optimizer=policy_optimizer,
         q_optimizer=q_optimizer,
-        # r_optimizer=r_optimizer,
         iterator=dataset,
-        val_iterator=val_dataset,
         counter=counter,
         logger=self._logger_fn(),
         obs_to_goal=functools.partial(contrastive_utils.obs_to_goal_2d,
                                       start_index=self._config.start_index,
                                       end_index=self._config.end_index),
         config=self._config,
-        expert_goals=expert_goals) ###===### ###---###
+        expert_goals=expert_goals,
+        critic_checkpoint_state=critic_checkpoint_state,) ###===### ###---###
 
   def make_actor(
       self,
@@ -110,45 +109,36 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
     if self._config.use_random_actor:
       # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
       ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
-      # ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
     else:
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
       ACTOR = contrastive_utils.NoGoalActor
-      # ACTOR = contrastive_utils.ZeroGoalActor
-    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=True)
+    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu')
 
   def make_replay_tables(
       self,
       environment_spec,
-      n_episodes=None,
   ):
     """Create tables to insert data into."""
     samples_per_insert_tolerance = (
         self._config.samples_per_insert_tolerance_rate
         * self._config.samples_per_insert)
-
-    if n_episodes is None:
-        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-        max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-    else:
-        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps
-        max_replay_traj = n_episodes
-
-        min_replay_traj += 100
-        max_replay_traj += 100
-    # min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-    # max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-
-    print("\nmin_replay_traj:", min_replay_traj)
-    print("max_replay_traj:", max_replay_traj, "\n")
-
+    min_replay_traj = self._config.min_replay_size  // self._config.max_episode_steps  # pylint: disable=line-too-long
+    max_replay_traj = self._config.max_replay_size  // self._config.max_episode_steps  # pylint: disable=line-too-long
     error_buffer = min_replay_traj * samples_per_insert_tolerance
     limiter = rate_limiters.SampleToInsertRatio(
         min_size_to_sample=min_replay_traj,
         samples_per_insert=self._config.samples_per_insert,
         error_buffer=error_buffer)
-
-    return [
+    # return [
+    #     reverb.Table(
+    #         name=self._config.replay_table_name,
+    #         sampler=reverb.selectors.Uniform(),
+    #         remover=reverb.selectors.Fifo(),
+    #         max_size=max_replay_traj,
+    #         rate_limiter=limiter,
+    #         signature=adders_reverb.EpisodeAdder.signature(environment_spec, {}))  # pylint: disable=line-too-long
+    # ]
+    x = [
         reverb.Table(
             name=self._config.replay_table_name,
             sampler=reverb.selectors.Uniform(),
@@ -157,6 +147,7 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
             rate_limiter=limiter,
             signature=EpisodeAdderSaver.signature(environment_spec, {}))  # pylint: disable=line-too-long
     ]
+    return x
 
   def make_dataset_iterator(
       self, replay_client):

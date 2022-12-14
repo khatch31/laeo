@@ -54,6 +54,10 @@ import shutil
 import tensorflow as tf
 import dill
 
+import acme
+
+from acme.agents.jax import td3
+
 from contrastive.wandb_logger import WANDBLogger
 
 
@@ -71,8 +75,8 @@ flags.DEFINE_bool('exp_q_action', False, 'description.')
 
 flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
 flags.DEFINE_integer('batch_size', 256, 'description.')
-flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
-flags.DEFINE_float('learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('policy_learning_rate', 3e-4, 'description.')
+flags.DEFINE_float('critic_learning_rate', 3e-4, 'description.')
 flags.DEFINE_float('reward_learning_rate', 3e-4, 'description.')
 flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
 flags.DEFINE_integer('repr_dim', 64, 'description.')
@@ -84,7 +88,7 @@ flags.DEFINE_bool('save_data', False, 'description.')
 flags.DEFINE_string('data_load_dir', None, 'description.')
 flags.DEFINE_integer('max_checkpoints_to_keep', 1, 'description.')
 
-flags.DEFINE_float('bc_coef', 0, 'description.')
+flags.DEFINE_float('bc_alpha', 0, 'description.')
 flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
@@ -97,7 +101,6 @@ flags.DEFINE_bool('use_l2_reward', False, 'description.')
 flags.DEFINE_bool('sigmoid_q', False, 'description.')
 flags.DEFINE_float('hardcode_r', None, 'description.')
 flags.DEFINE_bool('shift_learned_reward', False, 'shift_learned_reward.')
-
 flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
 
 flags.DEFINE_string('reward_loss_type', "bce", 'description.')
@@ -105,14 +108,14 @@ flags.DEFINE_string('reward_loss_type', "bce", 'description.')
 flags.DEFINE_integer('seed', 0, 'description.')
 flags.DEFINE_integer('prefetch_size', 4, 'description.')
 flags.DEFINE_integer('num_parallel_calls', 4, 'description.')
-# flags.DEFINE_bool('repr_norm_temp', False, 'repr_norm_temp.')
-flags.DEFINE_bool('repr_norm', False, 'repr_norm.')
-flags.DEFINE_bool('mse_bc_loss', False, 'mse_bc_loss.')
 
 flags.DEFINE_integer('n_success_examples', 200, 'description.')
 
 
-
+class ObjectDict(object):
+    def __init__(self, dict):
+        for key, val in dict.items():
+            self.__dict__[key] = val
 
 
 @functools.lru_cache()
@@ -142,7 +145,7 @@ def get_program(params):
     params['num_actors'] = 0
     assert not FLAGS.save_data
 
-  config = contrastive.ContrastiveConfigGoals(**params)
+  config = contrastive.ContrastiveConfigGoalsTD3(**params) ###@@@###
 
   print("config.num_sgd_steps_per_step:", config.num_sgd_steps_per_step)
 
@@ -159,14 +162,17 @@ def get_program(params):
   if env_name == 'offline_ant_umaze_diverse':
     # This environment terminates after 700 steps, but demos have 1000 steps.
     config.max_episode_steps = 1000
+
+  env_spec = ObjectDict({"observations":environment.observation_spec(), "actions":environment.action_spec()})
+
+  ###@@@###
   network_factory = functools.partial(
-      contrastive.make_networks, obs_dim=obs_dim, repr_dim=config.repr_dim,
-      repr_norm=config.repr_norm, twin_q=config.twin_q,
-      use_image_obs=config.use_image_obs,
+      contrastive.networks_td3.make_networks,
+      # specs=env_spec,
+      obs_dim=obs_dim,
       hidden_layer_sizes=config.hidden_layer_sizes,
-      actor_min_std=config.actor_min_std,
-      use_td=config.use_td,
-      slice_actor_goal=True)
+      use_image_obs=config.use_image_obs,
+      slice_actor_goal=False)
 
   expert_goals = environment.get_expert_goals()
   # print("\nexpert_goals:\n", expert_goals)
@@ -175,23 +181,19 @@ def get_program(params):
   # if "image" in env_name and "push" in env_name:
   #     print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
-  algo = "learner_goals"
-  if FLAGS.use_gcbc:
-      algo = "bc"
-  elif FLAGS.use_td:
-      algo = "td"
-      if FLAGS.use_sarsa:
-          algo += "_sarsa"
-      if FLAGS.use_true_reward:
-          algo += "_trueR"
-      if FLAGS.use_l2_reward:
-          algo += "_l2R"
-      if FLAGS.sigmoid_q:
-          algo += "_sigmoid_q"
-      if FLAGS.hardcode_r is not None:
-          algo += f"_hardcode_r={FLAGS.hardcode_r}"
-      if FLAGS.shift_learned_reward:
-          algo += "lrshift"
+  algo = "td3"
+  if FLAGS.use_sarsa:
+      algo += "_sarsa"
+  if FLAGS.use_true_reward:
+      algo += "_trueR"
+  if FLAGS.use_l2_reward:
+      algo += "_l2R"
+  if FLAGS.sigmoid_q:
+      algo += "_sigmoid_q"
+  if FLAGS.hardcode_r is not None:
+      algo += f"_hardcode_r={FLAGS.hardcode_r}"
+  if FLAGS.shift_learned_reward:
+      algo += "lrshift"
 
   logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
 
@@ -210,7 +212,7 @@ def get_program(params):
 
   reward_checkpoint_state = None
 
-  agent = contrastive.DistributedContrastiveGoals(
+  agent = contrastive.DistributedContrastiveGoalsTD3(
       seed=seed,
       environment_factory=env_factory_no_extra,
       network_factory=network_factory,
@@ -272,8 +274,8 @@ def main(_):
 
   params["max_number_of_steps"] = FLAGS.max_number_of_steps
   params["batch_size"] = FLAGS.batch_size
-  params["actor_learning_rate"] = FLAGS.actor_learning_rate
-  params["learning_rate"] = FLAGS.learning_rate
+  params["policy_learning_rate"] = FLAGS.policy_learning_rate
+  params["critic_learning_rate"] = FLAGS.critic_learning_rate
   params["reward_learning_rate"] = FLAGS.reward_learning_rate
   params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
   params["repr_dim"] = FLAGS.repr_dim
@@ -281,7 +283,7 @@ def main(_):
   params["hidden_layer_sizes"] = FLAGS.hidden_layer_sizes
   params["actor_min_std"] = FLAGS.actor_min_std
 
-  params["bc_coef"] = FLAGS.bc_coef
+  params["bc_alpha"] = FLAGS.bc_alpha
   params["twin_q"] = FLAGS.twin_q
 
   params["use_gcbc"] = FLAGS.use_gcbc
@@ -299,10 +301,6 @@ def main(_):
   params["seed"] = FLAGS.seed
   params["prefetch_size"] = FLAGS.prefetch_size
   params["num_parallel_calls"] = FLAGS.num_parallel_calls
-  # params["repr_norm_temp"] = FLAGS.repr_norm_temp
-  params["repr_norm"] = FLAGS.repr_norm
-  params["mse_bc_loss"] = FLAGS.mse_bc_loss
-
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -328,7 +326,6 @@ def main(_):
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
 
-
   if env_name.startswith('offline'):
     assert FLAGS.data_load_dir is not None
 
@@ -339,8 +336,6 @@ def main(_):
         'random_goals': 0.0,
     })
 
-
-
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):
     params.update({
@@ -349,7 +344,7 @@ def main(_):
         'samples_per_insert_tolerance_rate': 100_000_000.0,
         # For the actor update, only use future states as goals.
         'random_goals': 0.0,
-        'bc_coef': 0.05,  # Add a behavioral cloning term to the actor.
+        'bc_alpha': 0.05,  # Add a behavioral cloning term to the actor.
         'twin_q': True,  # Learn two critics, and take the minimum.
         'batch_size': 1024,  # Increase the batch size 256 --> 1024.
         'repr_dim': 16,  # Decrease the representation size 64 --> 16.
@@ -374,6 +369,7 @@ def main(_):
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.
+
   lp.launch(program, terminal='current_terminal')
   # local_resources = dict(actor=lp.PythonProcess(env=dict(XLA_PYTHON_CLIENT_MEM_FRACTION='0.1')))
   # lp.launch(program, terminal='current_terminal', local_resources=local_resources)

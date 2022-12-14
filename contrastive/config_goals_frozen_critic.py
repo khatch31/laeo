@@ -23,7 +23,7 @@ import numpy as onp
 
 
 @dataclasses.dataclass
-class ContrastiveConfig:
+class ContrastiveConfigGoalsFrozenCritic:
   """Configuration options for contrastive RL."""
 
   env_name: str = ''
@@ -79,10 +79,8 @@ class ContrastiveConfig:
   start_index: int = 0
   end_index: int = -1
 
-  num_evaluators: int = 1
-
   max_checkpoints_to_keep: int = 1
-  preload_buffer: bool = False
+
 
 def target_entropy_from_env_spec(
     spec,

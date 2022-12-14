@@ -41,28 +41,29 @@ import tqdm
 from contrastive.default_logger import make_default_logger
 from glob import glob
 import os
+import functools
+import contrastive.utils as contrastive_utils
 
-import time
 
 
-ActorId = int
-AgentNetwork = Any
-PolicyNetwork = Any
-NetworkFactory = Callable[[specs.EnvironmentSpec], AgentNetwork]
-PolicyFactory = Callable[[AgentNetwork], PolicyNetwork]
-Seed = int
-EnvironmentFactory = Callable[[Seed], dm_env.Environment]
-MakeActorFn = Callable[[types.PRNGKey, PolicyNetwork, core.VariableSource],
-                       core.Actor]
-LoggerLabel = str
-LoggerStepsKey = str
-LoggerFn = Callable[[LoggerLabel, LoggerStepsKey], loggers.Logger]
-EvaluatorFactory = Callable[[
-    types.PRNGKey,
-    core.VariableSource,
-    counting.Counter,
-    MakeActorFn,
-], core.Worker]
+# ActorId = int
+# AgentNetwork = Any
+# PolicyNetwork = Any
+# NetworkFactory = Callable[[specs.EnvironmentSpec], AgentNetwork]
+# PolicyFactory = Callable[[AgentNetwork], PolicyNetwork]
+# Seed = int
+# EnvironmentFactory = Callable[[Seed], dm_env.Environment]
+# MakeActorFn = Callable[[types.PRNGKey, PolicyNetwork, core.VariableSource],
+#                        core.Actor]
+# LoggerLabel = str
+# LoggerStepsKey = str
+# LoggerFn = Callable[[LoggerLabel, LoggerStepsKey], loggers.Logger]
+# EvaluatorFactory = Callable[[
+#     types.PRNGKey,
+#     core.VariableSource,
+#     counting.Counter,
+#     MakeActorFn,
+# ], core.Worker]
 
 
 def get_default_logger_fn(
@@ -137,7 +138,7 @@ class CheckpointingConfig:
   # add_uid: bool = True
 
 
-class DistributedLayout:
+class DistributedLayoutGoalsTD3:
   """Program definition for a distributed agent based on a builder."""
 
   def __init__(
@@ -182,13 +183,11 @@ class DistributedLayout:
         multithreading_colocate_learner_and_reverb)
     self._checkpointing_config = checkpointing_config
 
-  def replay(self):
+  def replay(self, n_episodes=None):
     """The replay storage."""
     dummy_seed = 1
-    environment_spec = (
-        self._environment_spec or
-        specs.make_environment_spec(self._environment_factory(dummy_seed)))
-    return self._builder.make_replay_tables(environment_spec)
+    environment_spec = (self._environment_spec or specs.make_environment_spec(self._environment_factory(dummy_seed)))
+    return self._builder.make_replay_tables(environment_spec, n_episodes=n_episodes)
 
   def counter(self):
     kwargs = {}
@@ -205,88 +204,39 @@ class DistributedLayout:
       self,
       random_key,
       replay,
+      val_replay,
       counter,
+      expert_goals, ###===### ###---###
   ):
     """The Learning part of the agent."""
 
-    if self._builder._config.env_name.startswith('offline_ant'):  # pytype: disable=attribute-error, pylint: disable=protected-access
-      adder = self._builder.make_adder(replay, force_no_save=True)
-      env = self._environment_factory(0)
-      print("env:", env)
-      # dataset = env.get_dataset()  # pytype: disable=attribute-error
-      # import gym
-      # dataset = gym.make("antmaze-umaze-v2").get_dataset()
-      #
-      # # env.observation_space.shape = (20,)
-      # # env.action_space.shape = (4,)
-      #
-      # for t in tqdm.trange(dataset['observations'].shape[0]):
-      #   discount = 1.0
-      #   if t == 0 or dataset['timeouts'][t - 1]:
-      #     step_type = dm_env.StepType.FIRST
-      #   elif dataset['timeouts'][t]:
-      #     step_type = dm_env.StepType.LAST
-      #     discount = 0.0
-      #   else:
-      #     step_type = dm_env.StepType.MID
-      #
-      #   ts = dm_env.TimeStep(
-      #       step_type=step_type,
-      #       reward=dataset['rewards'][t],
-      #       discount=discount,
-      #       observation=dataset['observations'][t][:env.observation_space.shape[0]],
-      #   )
-      #   if t == 0 or dataset['timeouts'][t - 1]:
-      #     adder.add_first(ts)  # pytype: disable=attribute-error
-      #   else:
-      #     # adder.add(action=dataset['actions'][t-1], next_timestep=ts)  # pytype: disable=attribute-error
-      #     adder.add(action=dataset['actions'][t-1][:env.action_space.shape[0]], next_timestep=ts)
-      #
-      #   if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
-      #     break
-
-      for t in tqdm.trange(dataset['observations'].shape[0]):
-        discount = 1.0
-        if t == 0 or dataset['timeouts'][t - 1]:
-          step_type = dm_env.StepType.FIRST
-        elif dataset['timeouts'][t]:
-          step_type = dm_env.StepType.LAST
-          discount = 0.0
-        else:
-          step_type = dm_env.StepType.MID
-
-        ts = dm_env.TimeStep(
-            step_type=step_type,
-            reward=dataset['rewards'][t],
-            discount=discount,
-            observation=np.concatenate([dataset['observations'][t],
-                                        dataset['infos/goal'][t]]),
-        )
-        if t == 0 or dataset['timeouts'][t - 1]:
-          adder.add_first(ts)  # pytype: disable=attribute-error
-        else:
-          adder.add(action=dataset['actions'][t-1], next_timestep=ts)  # pytype: disable=attribute-error
-
-        if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
-          break
-
     use_image_obs = self._builder._config.use_image_obs
     # if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
-    if "offline" in self._builder._config.env_name or self._builder._config.preload_buffer:
+    if "offline" in self._builder._config.env_name:
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
+        val_adder = self._builder.make_adder(val_replay, force_no_save=True)
+
+        if expert_goals is None:
+            expert_goals_list = []
 
         episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
         episode_files = sorted(episode_files, key=get_ep_no)
         # episode_files = sorted(episode_files, key=get_ep_no, reverse=True) # j = 0
 
+        all_ep_idxs = np.arange(len(episode_files))
+        np.random.shuffle(all_ep_idxs)
+        val_ep_idxs = all_ep_idxs[:int(len(episode_files) * self._builder._config.val_size)]
+        print("val_ep_idxs:", val_ep_idxs)
+
+        val_examples_added = 0
         train_examples_added = 0
 
         # j = 0
         for ep_idx, episode_file in tqdm.tqdm(enumerate(episode_files), total=len(episode_files), desc="Loading episode files"):
             # j += 1
-            # if j > 500:
+            # if j > 1000:
             #     break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
@@ -295,6 +245,20 @@ class DistributedLayout:
             assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
             if use_image_obs:
                 assert len(episode["observation"]) == len(episode["image"])
+
+            if expert_goals is None and episode["reward"].sum() > 0:
+                if "success" in episode.keys():
+                    success_idxs = np.nonzero(episode["success"])[0]
+                else:
+                    success_idxs = np.nonzero(episode["reward"])[0]
+                # success_observations = episode["observation"][success_idxs]
+                for idx in success_idxs:
+                    if use_image_obs:
+                        assert episode["image"][idx].shape[0] == self._obs_dim # Should be the same regardless of slicing, goal image stored seperately in data
+                        expert_goals_list.append(episode["image"][idx][:self._obs_dim])#.astype(np.float32))
+                    else:
+                        expert_goals_list.append(episode["observation"][idx][:self._obs_dim])
+
 
             for t in range(episode["observation"].shape[0]):
                 if use_image_obs:
@@ -309,23 +273,55 @@ class DistributedLayout:
                     observation=obs,
                 )
 
-                # Add to train replay buffer
-                train_examples_added += 1
-                if t == 0:
-                    assert episode["step_type"][t] == dm_env.StepType.FIRST
-                    adder.add_first(ts)  # pytype: disable=attribute-error
-                else:
-                    if t == episode["observation"].shape[0] - 1:
-                        assert episode["step_type"][t] == dm_env.StepType.LAST
+                # if t == 0:
+                #     assert episode["step_type"][t] == dm_env.StepType.FIRST
+                #     adder.add_first(ts)  # pytype: disable=attribute-error
+                # else:
+                #     assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
+                #     adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+
+                if ep_idx in val_ep_idxs: # Add to val replay buffer
+                    val_examples_added += 1
+                    if t == 0:
+                        assert episode["step_type"][t] == dm_env.StepType.FIRST
+                        val_adder.add_first(ts)  # pytype: disable=attribute-error
                     else:
-                        assert episode["step_type"][t] == dm_env.StepType.MID
+                        if t == episode["observation"].shape[0] - 1:
+                            assert episode["step_type"][t] == dm_env.StepType.LAST
+                        else:
+                            assert episode["step_type"][t] == dm_env.StepType.MID
 
-                    adder.add(action=episode['action'][t].astype(np.float32), next_timestep=ts)  # pytype: disable=attribute-error
-                # time.sleep(0.001)
+                        val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                else: # Add to train replay buffer
+                    train_examples_added += 1
+                    if t == 0:
+                        assert episode["step_type"][t] == dm_env.StepType.FIRST
+                        adder.add_first(ts)  # pytype: disable=attribute-error
+                    else:
+                        if t == episode["observation"].shape[0] - 1:
+                            assert episode["step_type"][t] == dm_env.StepType.LAST
+                        else:
+                            assert episode["step_type"][t] == dm_env.StepType.MID
 
-        print(f"\n\ntrain_examples_added: {train_examples_added}")
+                        adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+
+
+        print(f"\n\nval_examples_added: {val_examples_added}, train_examples_added: {train_examples_added}")
+        # assert len(val_ep_idxs) == val_eps_added
+        # assert len(episode_files) - len(val_ep_idxs) == train_eps_added
+
+        if expert_goals is None:
+            idxs = np.arange(len(expert_goals_list))
+            np.random.shuffle(idxs)
+            idxs = idxs[:self._builder._config.n_success_examples]
+            expert_goals = [expert_goals_list[i] for i in idxs]
+            expert_goals = np.stack(expert_goals)
+            os.makedirs(os.path.join(os.getcwd(), "debug_images"), exist_ok=True)
+            np.save(os.path.join(os.getcwd(), "debug_images", "expert_goals"), expert_goals)
+
 
     iterator = self._builder.make_dataset_iterator(replay)
+    val_iterator = self._builder.make_dataset_iterator(val_replay)
 
     dummy_seed = 1
     environment_spec = (
@@ -349,12 +345,14 @@ class DistributedLayout:
 
     counter = counting.Counter(counter, 'learner')
 
-    learner = self._builder.make_learner(random_key, networks, iterator, replay,
-                                         counter) ###===### ###---###
+
+    learner = self._builder.make_learner(random_key, networks, iterator, val_iterator, replay,
+                                         counter, expert_goals) ###===### ###---###
+    # learner = self._builder.make_learner(random_key, networks, iterator, replay,
+    #                                      counter, expert_goals) ###===### ###---###
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
-
     # Return the learning agent.
     return savers.CheckpointingRunner(
         learner,
@@ -378,8 +376,11 @@ class DistributedLayout:
 
     networks = self._network_factory(specs.make_environment_spec(environment))
     policy_network = self._policy_network(networks)
-    actor = self._builder.make_actor(actor_key, policy_network, adder,
-                                     variable_source)
+    actor = self._builder.make_actor(random_key=actor_key,
+                                     policy_network=policy_network,
+                                     # environment_spec=None,
+                                     variable_source=variable_source,
+                                     adder=adder)
 
     # Create logger and counter.
     counter = counting.Counter(counter, 'actor')
@@ -410,15 +411,28 @@ class DistributedLayout:
         return DefaultCheckpointer(os.path.join(self._logdir, "checkpoints", "replay_buffer"))
 
     if self._builder._config.env_name.startswith('offline'):
-        replay_node = lp.ReverbNode(self.replay)
+        # replay_node = lp.ReverbNode(self.replay)
+        # val_replay_node = lp.ReverbNode(self.replay)
+        n_train_episodes, n_val_episodes = contrastive_utils.count_episodes(self._data_load_dir, self._builder._config.val_size)
+        print("\nNumber of train episodes:", n_train_episodes)
+        print("Number of val episodes:", n_val_episodes, "\n")
+        replay_node = lp.ReverbNode(functools.partial(self.replay, n_episodes=n_train_episodes))
+        val_replay_node = lp.ReverbNode(functools.partial(self.replay, n_episodes=n_val_episodes))
     else:
         replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
+        val_replay_node = lp.ReverbNode(self.replay, checkpoint_time_delta_minutes=5, checkpoint_ctor=r_checpointer)
 
     with program.group('replay'):
       if self._multithreading_colocate_learner_and_reverb:
         replay = replay_node.create_handle()
       else:
         replay = program.add_node(replay_node)
+
+    with program.group('val_replay'):
+        if self._multithreading_colocate_learner_and_reverb:
+            val_replay = val_replay_node.create_handle()
+        else:
+            val_replay = program.add_node(val_replay_node)
 
     with program.group('counter'):
       counter = program.add_node(lp.CourierNode(self.counter))
@@ -428,12 +442,13 @@ class DistributedLayout:
                            self._max_number_of_steps))
 
     learner_key, key = jax.random.split(key)
-    learner_node = lp.CourierNode(self.learner, learner_key, replay, counter) ###===### ###---###
+    learner_node = lp.CourierNode(self.learner, learner_key, replay, val_replay, counter, self._expert_goals) ###===### ###---###
+    # learner_node = lp.CourierNode(self.learner, learner_key, replay, counter, self._expert_goals) ###===### ###---###
     with program.group('learner'):
       if self._multithreading_colocate_learner_and_reverb:
         learner = learner_node.create_handle()
-        program.add_node(
-            lp.MultiThreadingColocation([learner_node, replay_node]))
+        program.add_node(lp.MultiThreadingColocation([learner_node, replay_node, val_replay_node]))
+        # program.add_node(lp.MultiThreadingColocation([learner_node, replay_node]))
       else:
         learner = program.add_node(learner_node)
 
@@ -442,6 +457,7 @@ class DistributedLayout:
                    variable_source):
       return self._builder.make_actor(
           random_key, policy_network, variable_source=variable_source)
+
 
     with program.group('evaluator'):
       for evaluator in self._evaluator_factories:

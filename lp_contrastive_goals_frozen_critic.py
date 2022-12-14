@@ -19,17 +19,16 @@ r"""Example running contrastive RL in JAX.
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
+
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
+
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/anaconda3/envs/contrastive_rl/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/iris/u/khatch/.mujoco/mujoco200/bin
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:=/iris/u/khatch/anaconda3/envs/crl2/lib/
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco200/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-000
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/afs/cs.stanford.edu/u/khatch/.mujoco/mujoco210/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
-python3 -u lp_contrastive_goals.py \
+python3 -u lp_contrastive_goals_frozen_critic.py \
 --lp_launch_type=local_mt \
 --env_name=fetch_reach-goals \
 --logdir=/iris/u/khatch/contrastive_rl/trash_results
@@ -50,12 +49,12 @@ from contrastive import utils as contrastive_utils
 import launchpad as lp
 
 import os
-import shutil
+
 import tensorflow as tf
 import dill
+import shutil
 
 from contrastive.wandb_logger import WANDBLogger
-
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('debug', False, 'Runs training for just a few steps.')
@@ -63,17 +62,15 @@ flags.DEFINE_string('env_name', None, 'Env_name.')
 flags.DEFINE_string('logdir', "~/acme", 'Env_name.')
 flags.DEFINE_string('description', "default", 'description.')
 flags.DEFINE_string('project', "contrastive_rl_goals", 'description.')
+flags.DEFINE_string('critic_checkpoint_path', None, 'description.')
 flags.DEFINE_string('replay_buffer_load_dir', None, 'description.')
 flags.DEFINE_float('entropy_coefficient', None, 'description.')
 flags.DEFINE_integer('num_actors', 4, 'description.')
-flags.DEFINE_bool('invert_actor_loss', False, 'description.')
-flags.DEFINE_bool('exp_q_action', False, 'description.')
 
 flags.DEFINE_integer('max_number_of_steps', 1_000_000, 'description.')
 flags.DEFINE_integer('batch_size', 256, 'description.')
 flags.DEFINE_float('actor_learning_rate', 3e-4, 'description.')
 flags.DEFINE_float('learning_rate', 3e-4, 'description.')
-flags.DEFINE_float('reward_learning_rate', 3e-4, 'description.')
 flags.DEFINE_integer('num_sgd_steps_per_step', 64, 'description.')
 flags.DEFINE_integer('repr_dim', 64, 'description.')
 flags.DEFINE_integer('max_replay_size', 1000000, 'description.')
@@ -88,31 +85,6 @@ flags.DEFINE_float('bc_coef', 0, 'description.')
 flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
-flags.DEFINE_bool('use_gcbc', False, 'description.')
-
-flags.DEFINE_bool('use_td', False, 'description.')
-flags.DEFINE_bool('use_sarsa', False, 'description.')
-flags.DEFINE_bool('use_true_reward', False, 'description.')
-flags.DEFINE_bool('use_l2_reward', False, 'description.')
-flags.DEFINE_bool('sigmoid_q', False, 'description.')
-flags.DEFINE_float('hardcode_r', None, 'description.')
-flags.DEFINE_bool('shift_learned_reward', False, 'shift_learned_reward.')
-
-flags.DEFINE_string('reward_checkpoint_path', None, 'description.')
-
-flags.DEFINE_string('reward_loss_type', "bce", 'description.')
-
-flags.DEFINE_integer('seed', 0, 'description.')
-flags.DEFINE_integer('prefetch_size', 4, 'description.')
-flags.DEFINE_integer('num_parallel_calls', 4, 'description.')
-# flags.DEFINE_bool('repr_norm_temp', False, 'repr_norm_temp.')
-flags.DEFINE_bool('repr_norm', False, 'repr_norm.')
-flags.DEFINE_bool('mse_bc_loss', False, 'mse_bc_loss.')
-
-flags.DEFINE_integer('n_success_examples', 200, 'description.')
-
-
-
 
 
 @functools.lru_cache()
@@ -130,21 +102,19 @@ def get_program(params):
   env_name = params['env_name']
   seed = params.pop('seed')
 
-  # if params.get('use_image_obs', False) and not params.get('local', False):
-  # #   print('WARNING: overwriting parameters for image-based tasks.')
-  #   # params['num_sgd_steps_per_step'] = 16
-  #   params['prefetch_size'] = 16
-  #   # params['num_actors'] = 10
+  if params.get('use_image_obs', False) and not params.get('local', False):
+    print('WARNING: overwriting parameters for image-based tasks.')
+    params['num_sgd_steps_per_step'] = 16
+    params['prefetch_size'] = 16
+    params['num_actors'] = 10
 
-  if env_name.startswith('offline'):
+  if env_name.startswith('offline_ant') or env_name.startswith('offline_fetch'):
     # No actors needed for the offline RL experiments. Evaluation is
     # handled separately.
     params['num_actors'] = 0
     assert not FLAGS.save_data
 
-  config = contrastive.ContrastiveConfigGoals(**params)
-
-  print("config.num_sgd_steps_per_step:", config.num_sgd_steps_per_step)
+  config = contrastive.ContrastiveConfigGoalsFrozenCritic(**params)
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
@@ -164,38 +134,17 @@ def get_program(params):
       repr_norm=config.repr_norm, twin_q=config.twin_q,
       use_image_obs=config.use_image_obs,
       hidden_layer_sizes=config.hidden_layer_sizes,
-      actor_min_std=config.actor_min_std,
-      use_td=config.use_td,
-      slice_actor_goal=True)
+      actor_min_std=config.actor_min_std)
 
   expert_goals = environment.get_expert_goals()
-  # print("\nexpert_goals:\n", expert_goals)
-  # print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
-  # print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
-  # if "image" in env_name and "push" in env_name:
-  #     print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
+  print("\nexpert_goals:\n", expert_goals)
+  print(f"\nenvironment._environment._environment._environment: {environment._environment._environment._environment}")
+  print(f"environment._environment._environment._environment._add_goal_noise: {environment._environment._environment._environment._add_goal_noise}\n\n")
+  if "image" in env_name and "push" in env_name:
+      print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
+  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], "learner_goals_frozen_critic", FLAGS.description, f"seed_{seed}")
 
-  algo = "learner_goals"
-  if FLAGS.use_gcbc:
-      algo = "bc"
-  elif FLAGS.use_td:
-      algo = "td"
-      if FLAGS.use_sarsa:
-          algo += "_sarsa"
-      if FLAGS.use_true_reward:
-          algo += "_trueR"
-      if FLAGS.use_l2_reward:
-          algo += "_l2R"
-      if FLAGS.sigmoid_q:
-          algo += "_sigmoid_q"
-      if FLAGS.hardcode_r is not None:
-          algo += f"_hardcode_r={FLAGS.hardcode_r}"
-      if FLAGS.shift_learned_reward:
-          algo += "lrshift"
-
-  logdir = os.path.join(FLAGS.logdir, FLAGS.project, params["env_name"], algo, FLAGS.description, f"seed_{seed}")
-
-  group_name="_".join([params["env_name"], algo, FLAGS.description])
+  group_name="_".join([params["env_name"], "learner_goals_frozen_critic", FLAGS.description])
   name=f"seed_{seed}"
   wandblogger = WANDBLogger(os.path.join(logdir, "wandb_logs"),
                             params,
@@ -203,14 +152,15 @@ def get_program(params):
                             name,
                             FLAGS.project)
 
+  reader = tf.train.load_checkpoint(FLAGS.critic_checkpoint_path)
+  params = reader.get_tensor('learner/.ATTRIBUTES/py_state')
+  critic_checkpoint_state = dill.loads(params)
+
   if FLAGS.replay_buffer_load_dir is not None:
       os.makedirs(os.path.join(logdir, "checkpoints"), exist_ok=True)
       shutil.copytree(FLAGS.replay_buffer_load_dir, os.path.join(logdir, "checkpoints", "replay_buffer"))
 
-
-  reward_checkpoint_state = None
-
-  agent = contrastive.DistributedContrastiveGoals(
+  agent = contrastive.DistributedContrastiveGoalsFrozenCritic(
       seed=seed,
       environment_factory=env_factory_no_extra,
       network_factory=network_factory,
@@ -219,13 +169,13 @@ def get_program(params):
       log_to_bigtable=True,
       max_number_of_steps=config.max_number_of_steps,
       expert_goals=expert_goals,
+      critic_checkpoint_state=critic_checkpoint_state,
       logdir=logdir,
       wandblogger=wandblogger,
       save_data=FLAGS.save_data,
       save_sim_state=FLAGS.save_sim_state,
       data_save_dir=os.path.join(logdir, "recorded_data"),
-      data_load_dir=FLAGS.data_load_dir,
-      reward_checkpoint_state=reward_checkpoint_state)
+      data_load_dir=FLAGS.data_load_dir)
   print("Done with agent init.")
 
   return agent.build()
@@ -267,14 +217,11 @@ def main(_):
   params["max_checkpoints_to_keep"] = FLAGS.max_checkpoints_to_keep
   params["entropy_coefficient"] = FLAGS.entropy_coefficient
   params["num_actors"] = FLAGS.num_actors
-  params["invert_actor_loss"] = FLAGS.invert_actor_loss
-  params["exp_q_action"] = FLAGS.exp_q_action
 
   params["max_number_of_steps"] = FLAGS.max_number_of_steps
   params["batch_size"] = FLAGS.batch_size
   params["actor_learning_rate"] = FLAGS.actor_learning_rate
   params["learning_rate"] = FLAGS.learning_rate
-  params["reward_learning_rate"] = FLAGS.reward_learning_rate
   params["num_sgd_steps_per_step"] = FLAGS.num_sgd_steps_per_step
   params["repr_dim"] = FLAGS.repr_dim
   params["max_replay_size"] = FLAGS.max_replay_size
@@ -283,26 +230,6 @@ def main(_):
 
   params["bc_coef"] = FLAGS.bc_coef
   params["twin_q"] = FLAGS.twin_q
-
-  params["use_gcbc"] = FLAGS.use_gcbc
-
-  params["use_td"] = FLAGS.use_td
-
-  params["reward_loss_type"] = FLAGS.reward_loss_type
-  params["n_success_examples"] = FLAGS.n_success_examples
-  params["use_sarsa"] = FLAGS.use_sarsa
-  params["use_true_reward"] = FLAGS.use_true_reward
-  params["use_l2_reward"] = FLAGS.use_l2_reward
-  params["sigmoid_q"] = FLAGS.sigmoid_q
-  params["hardcode_r"] = FLAGS.hardcode_r
-  params["shift_learned_reward"] = FLAGS.shift_learned_reward
-  params["seed"] = FLAGS.seed
-  params["prefetch_size"] = FLAGS.prefetch_size
-  params["num_parallel_calls"] = FLAGS.num_parallel_calls
-  # params["repr_norm_temp"] = FLAGS.repr_norm_temp
-  params["repr_norm"] = FLAGS.repr_norm
-  params["mse_bc_loss"] = FLAGS.mse_bc_loss
-
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -328,8 +255,7 @@ def main(_):
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
 
-
-  if env_name.startswith('offline'):
+  if env_name.startswith('offline_fetch'):
     assert FLAGS.data_load_dir is not None
 
     params.update({
@@ -338,8 +264,6 @@ def main(_):
         'samples_per_insert_tolerance_rate': 100_000_000.0,
         'random_goals': 0.0,
     })
-
-
 
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):
@@ -375,8 +299,6 @@ def main(_):
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.
   lp.launch(program, terminal='current_terminal')
-  # local_resources = dict(actor=lp.PythonProcess(env=dict(XLA_PYTHON_CLIENT_MEM_FRACTION='0.1')))
-  # lp.launch(program, terminal='current_terminal', local_resources=local_resources)
 
 if __name__ == '__main__':
   app.run(main)

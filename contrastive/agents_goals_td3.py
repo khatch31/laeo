@@ -21,23 +21,22 @@ from typing import Callable, Optional, Sequence
 from acme import specs
 from acme.jax import utils
 from acme.utils import loggers
-from contrastive import builder
+from contrastive import builder_goals_td3
 from contrastive import config as contrastive_config
-from contrastive import distributed_layout
-from contrastive import networks
+from contrastive import distributed_layout_goals_td3
+# from contrastive import networks
+from contrastive import networks_td3 as networks ###@@@###
 from contrastive import utils as contrastive_utils
 
 import dm_env
 
+
 from contrastive.default_logger import make_default_logger
 
-NetworkFactory = Callable[[specs.EnvironmentSpec],
-                          networks.ContrastiveNetworks]
+# NetworkFactory = Callable[[specs.EnvironmentSpec],
+#                           networks.ContrastiveNetworks]
 
-import os
-
-
-class DistributedContrastive(distributed_layout.DistributedLayout):
+class DistributedContrastiveGoalsTD3(distributed_layout_goals_td3.DistributedLayoutGoalsTD3):
   """Distributed program definition for contrastive RL."""
 
   def __init__(
@@ -51,21 +50,26 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
       log_to_bigtable = False,
       log_every = 10.0,
       evaluator_factories = None,
+      expert_goals=None,
       logdir=None,
       wandblogger=None,
       save_data=False,
       save_sim_state=False,
       data_save_dir="~/acme/data",
       data_load_dir=None,
-      max_checkpoints_to_keep=1,
+      reward_checkpoint_state=None
   ):
     # Check that the environment-specific parts of the config have been set.
     assert config.max_episode_steps > 0
     assert config.obs_dim > 0
 
+    self._obs_dim = config.obs_dim
+
+    self._expert_goals = expert_goals
     self._logdir = logdir
     self._wandblogger = wandblogger
     self._data_load_dir = data_load_dir
+    self._reward_checkpoint_state = reward_checkpoint_state
 
     logger_fn = functools.partial(make_default_logger,
                                   self._logdir,
@@ -74,67 +78,50 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
                                   serialize_fn=utils.fetch_devicearray,
                                   steps_key='learner_steps',
                                   wandblogger=wandblogger)
-    contrastive_builder = builder.ContrastiveBuilder(config,
+    contrastive_builder = builder_goals_td3.ContrastiveBuilderGoalsTD3(config,
                                                      logger_fn=logger_fn,
                                                      # save_data=save_data,
                                                      save_data=False,
                                                      data_save_dir=data_save_dir)
     if evaluator_factories is None:
-      # eval_policy_factory = (
-      #     lambda n: networks.apply_policy_and_sample(n, True))
-      # eval_observers = [
-      #     contrastive_utils.SuccessObserver(),
-      #     contrastive_utils.DistanceObserver(
-      #         obs_dim=config.obs_dim,
-      #         start_index=config.start_index,
-      #         end_index=config.end_index),
-      #     contrastive_utils.SavingObserver(
-      #         data_save_dir,
-      #         save=save_data,
-      #         save_sim_state=save_sim_state)
-      # ]
-      # evaluator_factories = [
-      #     distributed_layout.default_evaluator_factory(
-      #         environment_factory=environment_factory,
-      #         network_factory=network_factory,
-      #         policy_factory=eval_policy_factory,
-      #         log_to_bigtable=log_to_bigtable,
-      #         observers=eval_observers,
-      #         logdir=self._logdir,
-      #         wandblogger=self._wandblogger)
-      # ]
-      evaluator_factories = []
-      for i in range(config.num_evaluators):
-          eval_policy_factory = (
-              lambda n: networks.apply_policy_and_sample(n, True))
-          eval_observers = [
-              contrastive_utils.SuccessObserver(),
-              contrastive_utils.DistanceObserver(
-                  obs_dim=config.obs_dim,
-                  start_index=config.start_index,
-                  end_index=config.end_index),
-              contrastive_utils.SavingObserver(
-                  os.path.join(data_save_dir, f"evaluator_{i}"),
-                  save=save_data,
-                  save_sim_state=save_sim_state)
-          ]
-          evaluator_factories.append(
-            distributed_layout.default_evaluator_factory(
-                  environment_factory=environment_factory,
-                  network_factory=network_factory,
-                  policy_factory=eval_policy_factory,
-                  log_to_bigtable=log_to_bigtable,
-                  observers=eval_observers,
-                  logdir=self._logdir,
-                  wandblogger=self._wandblogger)
-          )
+      eval_policy_factory = (
+          lambda n: networks.apply_policy_and_sample(n, True))
+      eval_observers = [
+          contrastive_utils.ReturnObserver(),
+          contrastive_utils.SuccessObserver(),
+          contrastive_utils.LastNSuccessObserver(1),
+          contrastive_utils.LastNSuccessObserver(5),
+          contrastive_utils.LastNSuccessObserver(10),
+          contrastive_utils.DistanceObserver(
+              obs_dim=config.obs_dim,
+              start_index=config.start_index,
+              end_index=config.end_index),
+          contrastive_utils.SavingObserver(
+              data_save_dir,
+              save=save_data,
+              save_sim_state=save_sim_state)
+      ]
+      evaluator_factories = [
+          distributed_layout_goals_td3.default_evaluator_factory(
+              environment_factory=environment_factory,
+              network_factory=network_factory,
+              policy_factory=eval_policy_factory,
+              log_to_bigtable=log_to_bigtable,
+              observers=eval_observers,
+              logdir=self._logdir,
+              wandblogger=self._wandblogger)
+      ]
       if config.local:
         evaluator_factories = []
     actor_observers = [
         contrastive_utils.SuccessObserver(),
+        contrastive_utils.LastNSuccessObserver(1),
+        contrastive_utils.LastNSuccessObserver(5),
+        contrastive_utils.LastNSuccessObserver(10),
         contrastive_utils.DistanceObserver(obs_dim=config.obs_dim,
                                            start_index=config.start_index,
                                            end_index=config.end_index)]
+
     super().__init__(
         seed=seed,
         environment_factory=environment_factory,
@@ -146,10 +133,8 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
         max_number_of_steps=max_number_of_steps,
         prefetch_size=config.prefetch_size,
         log_to_bigtable=log_to_bigtable,
-        actor_logger_fn=distributed_layout.get_default_logger_fn(
+        actor_logger_fn=distributed_layout_goals_td3.get_default_logger_fn(
             log_to_bigtable, log_every, self._logdir, self._wandblogger),
         observers=actor_observers,
-        # checkpointing_config=distributed_layout.CheckpointingConfig(),
-        checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, max_to_keep=config.max_checkpoints_to_keep, add_uid=False),)
-        # checkpointing_config=distributed_layout.CheckpointingConfig(directory=self._logdir, add_uid=False,
-        #                                                             replay_checkpointing_time_delta_minutes=30),)
+        # checkpointing_config=distributed_layout_goals.CheckpointingConfig(),
+        checkpointing_config=distributed_layout_goals_td3.CheckpointingConfig(directory=self._logdir, max_to_keep=config.max_checkpoints_to_keep, add_uid=False),)

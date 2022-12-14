@@ -35,6 +35,14 @@ WALLS = {
                   [0, 0, 0, 1, 0, 0, 0],
                   [0, 0, 0, 1, 0, 0, 0],
                   [0, 0, 0, 0, 0, 0, 0]]),
+    'Empty':  # max_goal_dist = 9
+        np.array([[0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0]]),
     'FourRooms':  # max_goal_dist = 14
         np.array([[0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
                   [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
@@ -112,7 +120,7 @@ class PointEnvFixedGoal(gym.Env):
       self._walls = WALLS[walls]
     (height, width) = self._walls.shape
     self._height = height
-    self._dist = []
+    # self._dist = []
     self._width = width
     self._action_noise = 0.01
     self.action_space = gym.spaces.Box(
@@ -127,7 +135,7 @@ class PointEnvFixedGoal(gym.Env):
 
   def render(self, mode= 'human', close=False):
     """Same structure as the render functions in the gym APIs"""
-    return self._get_img(self.state)
+    return self._get_img(self.state, self.goal)
 
   def _sample_empty_state(self):
     candidate_states = np.where(self._walls == 0)
@@ -140,11 +148,17 @@ class PointEnvFixedGoal(gym.Env):
     assert not self._is_blocked(state)
     return state
 
-  def _get_img(self, state):
+  def _get_img(self, state, goal):
     """Including this here so that we can look at how the policy
     is performing in the given environment"""
     scale = 30
     img = resize_walls(self.walls, scale)
+    # print("\nimg.shape", img.shape)
+    # for i in range(img.shape[0]):
+    #     for j in range(img.shape[1]):
+    #         print(f"{img[i, j]}", end=" ")
+    #     print()
+
     img = 0.5 * (1 - img)
     radius = 10
     low_i, low_j = np.clip((state * scale).astype(int) - radius,
@@ -152,25 +166,41 @@ class PointEnvFixedGoal(gym.Env):
     high_i, high_j = np.clip((state * scale).astype(int) + radius,
                              [0, 0], img.shape)
     img[low_i:high_i, low_j:high_j] = 1
+
+
+    img_green = img.copy()
+    low_i, low_j = np.clip((goal * scale).astype(int) - radius,
+                           [0, 0], img.shape)
+    high_i, high_j = np.clip((goal * scale).astype(int) + radius,
+                             [0, 0], img.shape)
+    img_green[low_i:high_i, low_j:high_j] = 1
+
+
     (h, w) = img.shape
     img = (255 * img).astype(np.uint8)
     img = scipy.ndimage.zoom(img, (64 / h, 64 / w), order=0)
-    img = np.stack([img, img, img], axis=-1)
+
+    (h, w) = img_green.shape
+    img_green = (255 * img_green).astype(np.uint8)
+    img_green = scipy.ndimage.zoom(img_green, (64 / h, 64 / w), order=0)
+
+    img = np.stack([img, img_green, img], axis=-1)
     return img
 
   def _get_obs(self):
     return np.concatenate([self.state, self.goal]).astype(np.float32)
 
   def _sample_goal_state(self):
-      goals = np.array([[1, 4],
-                [1.1, 4.7],
-                [1.2, 4.1],
-                [1.3, 4.6],
-                [1.4, 4.2],
-                [1.5, 4.5],
-                [1.6, 4.3],
-                [1.7, 4.4],
-                [1.8, 4.8]])
+      # goals = np.array([[1, 4],
+      #           [1.1, 4.7],
+      #           [1.2, 4.1],
+      #           [1.3, 4.6],
+      #           [1.4, 4.2],
+      #           [1.5, 4.5],
+      #           [1.6, 4.3],
+      #           [1.7, 4.4],
+      #           [1.8, 4.8]])
+      goals = np.array([[1, 6]])
 
       idx = np.random.randint(0, goals.shape[0])
       return goals[idx]
@@ -179,7 +209,7 @@ class PointEnvFixedGoal(gym.Env):
     # self.goal = self._sample_empty_state()
     self.goal = self._sample_goal_state()
     self.state = self._sample_empty_state()
-    self._dist = []
+    # self._dist = []
     return self._get_obs()
 
   def _discretize_state(self, state, resolution=1.0):
@@ -216,13 +246,20 @@ class PointEnvFixedGoal(gym.Env):
     done = False
     obs = self._get_obs()
     dist = np.linalg.norm(self.goal - self.state)
-    self._dist.append(dist)
+    # self._dist.append(dist)
     rew = float(dist < 2.0)
     return obs, rew, done, {}
 
   @property
   def walls(self):
     return self._walls
+
+  def get_expert_goals(self):
+      goals = np.zeros((10, 2)) + np.array([1, 5])
+      goals += np.random.normal(scale=0.01, size=goals.shape)
+      return goals
+
+
 
 
 class PointImageFixedGoal(PointEnvFixedGoal):

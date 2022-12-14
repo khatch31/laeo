@@ -23,7 +23,7 @@ import numpy as onp
 
 
 @dataclasses.dataclass
-class ContrastiveConfig:
+class ContrastiveConfigGoals:
   """Configuration options for contrastive RL."""
 
   env_name: str = ''
@@ -31,9 +31,10 @@ class ContrastiveConfig:
   num_actors: int = 4
 
   # Loss options
-  batch_size: int = 256
+  batch_size: int = 512 # 256
   actor_learning_rate: float = 3e-4
   learning_rate: float = 3e-4
+  reward_learning_rate: float = 3e-4
   reward_scale: float = 1
   discount: float = 0.99
   n_step: int = 1
@@ -57,10 +58,11 @@ class ContrastiveConfig:
   samples_per_insert_tolerance_rate: float = 0.1
   num_sgd_steps_per_step: int = 64  # Gradient updates to perform per step.
 
-  repr_dim: Union[int, str] = 64  # Size of representation.
+  repr_dim: Union[int, str] = 64 # Size of representation.
   actor_min_std: float = 1e-6
   use_random_actor: bool = True  # Initial with uniform random policy.
   repr_norm: bool = False
+  repr_norm_temp: bool = False
   use_cpc: bool = False
   local: bool = False  # Whether running locally. Disables eval.
   use_td: bool = False
@@ -79,10 +81,24 @@ class ContrastiveConfig:
   start_index: int = 0
   end_index: int = -1
 
-  num_evaluators: int = 1
+  invert_actor_loss: bool = False
+  exp_q_action: bool = False
 
   max_checkpoints_to_keep: int = 1
-  preload_buffer: bool = False
+
+  reward_loss_type: str = "bce"
+  val_size: float = 0.1
+
+  use_sarsa: bool = False
+  use_true_reward: bool = False
+  use_l2_reward: bool = False
+  sigmoid_q: bool = False
+  hardcode_r: float = None
+  shift_learned_reward: bool = False
+
+  val_interval: int = 100
+  mse_bc_loss: bool = False
+  n_success_examples: int = 200
 
 def target_entropy_from_env_spec(
     spec,

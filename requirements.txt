@@ -54,21 +54,22 @@ Mako==1.2.0
 Markdown==3.3.7
 MarkupSafe==2.1.1
 matplotlib==3.5.2
-mjrl @ git+https://github.com/aravindr93/mjrl@3871d93763d3b49c4741e6daeaebbc605fe140dc
+# mjrl @ git+https://github.com/aravindr93/mjrl@3871d93763d3b49c4741e6daeaebbc605fe140dc
+mjrl @ git+https://github.com/aravindr93/mjrl@master#egg=mjrl
 mkl-fft==1.3.1
 mkl-service==2.4.0
 mock==4.0.3
 msgpack==1.0.4
-mujoco==2.2.0
-mujoco-py==2.0.2.7
+# mujoco==2.2.0
+# mujoco-py==2.0.2.7
 numpy==1.22.4
 opt-einsum==3.3.0
 optax==0.1.2
 packaging==21.3
-Pillow==7.2.0
+# Pillow==7.2.0
 portpicker==1.5.2
 promise==2.3
-protobuf==3.19.1
+# protobuf==3.19.1
 psutil==5.9.1
 pyasn1-modules==0.2.8
 pybullet==3.2.5
@@ -84,13 +85,13 @@ rsa==4.8
 scipy==1.8.1
 six==1.16.0
 tabulate==0.8.9
-tensorboard==2.8.0
-tensorboard-data-server==0.6.1
-tensorboard-plugin-wit==1.8.1
-tensorflow==2.8.2
-tensorflow-datasets==4.4.0
-tensorflow-estimator==2.8.0
-tensorflow-probability==0.15.0
+# tensorboard==2.8.0
+# tensorboard-data-server==0.6.1
+# tensorboard-plugin-wit==1.8.1
+# tensorflow==2.8.2
+# tensorflow-datasets==4.4.0
+# tensorflow-estimator==2.8.0
+# tensorflow-probability==0.15.0
 termcolor==1.1.0
 tf-estimator-nightly==2.8.0.dev2021122109
 toolz==0.11.2

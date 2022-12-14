@@ -33,6 +33,14 @@ import jax
 import numpy as np
 
 
+
+import os
+import io
+from glob import glob
+
+from jax.experimental import host_callback as hcb
+
+
 def obs_to_goal_1d(obs, start_index, end_index):
   assert len(obs.shape) == 1
   return obs_to_goal_2d(obs[None], start_index, end_index)[0]
@@ -45,6 +53,43 @@ def obs_to_goal_2d(obs, start_index, end_index):
   else:
     return obs[:, start_index:end_index]
 
+
+def count_episodes(data_load_dir, val_size):
+    episode_files = glob(os.path.join(data_load_dir, "**", "*.npz"), recursive=True)
+    all_ep_idxs = np.arange(len(episode_files))
+    val_ep_idxs = all_ep_idxs[:int(len(episode_files) * val_size)] # Slice off the first big
+    train_ep_idxs = all_ep_idxs[val_ep_idxs.shape[0]:]
+    assert len(train_ep_idxs) + len(val_ep_idxs) == len(all_ep_idxs)
+    return len(train_ep_idxs), len(val_ep_idxs)
+
+class ReturnObserver(observers_base.EnvLoopObserver):
+  """Measures success by whether any of the rewards in an episode are positive.
+  """
+
+  def __init__(self):
+    self._rewards = []
+    self._returns = []
+
+  def observe_first(self, env, timestep
+                    ):
+    """Observes the initial state."""
+    if self._rewards:
+      returns = np.sum(self._rewards)
+      self._returns.append(returns)
+    self._rewards = []
+
+  def observe(self, env, timestep,
+              action):
+    """Records one environment step."""
+
+    self._rewards.append(timestep.reward)
+
+  def get_metrics(self):
+    """Returns metrics collected for the current episode."""
+    return {
+        'return': float(np.sum(self._rewards)),
+        'return_1000': np.mean(self._returns[-1000:]),
+    }
 
 class SuccessObserver(observers_base.EnvLoopObserver):
   """Measures success by whether any of the rewards in an episode are positive.
@@ -65,8 +110,13 @@ class SuccessObserver(observers_base.EnvLoopObserver):
   def observe(self, env, timestep,
               action):
     """Records one environment step."""
-    assert timestep.reward in [0, 1]
-    self._rewards.append(timestep.reward)
+
+    info = env.get_info()
+    if "success" in info:
+        self._rewards.append(info["success"])
+    else:
+        assert timestep.reward in [0, 1]
+        self._rewards.append(timestep.reward)
 
   def get_metrics(self):
     """Returns metrics collected for the current episode."""
@@ -74,6 +124,144 @@ class SuccessObserver(observers_base.EnvLoopObserver):
         'success': float(np.sum(self._rewards) >= 1),
         'success_1000': np.mean(self._success[-1000:]),
     }
+
+
+class LastNSuccessObserver(observers_base.EnvLoopObserver):
+  """Measures success by whether any of the rewards in an episode are positive.
+  """
+
+  def __init__(self, n):
+    self._rewards = []
+    self._success = []
+    self._n = n
+
+  def observe_first(self, env, timestep
+                    ):
+    """Observes the initial state."""
+    if self._rewards:
+      # success = np.sum(self._rewards) >= 1
+      last_n_rewards = [self._rewards[-i] for i in range(min(self._n, len(self._rewards)))]
+      success = np.sum(last_n_rewards) >= 1
+      self._success.append(success)
+    self._rewards = []
+
+  def observe(self, env, timestep,
+              action):
+    """Records one environment step."""
+    info = env.get_info()
+    if "success" in info:
+        self._rewards.append(info["success"])
+    else:
+        assert timestep.reward in [0, 1]
+        self._rewards.append(timestep.reward)
+
+  def get_metrics(self):
+    """Returns metrics collected for the current episode."""
+
+    last_n_rewards = [self._rewards[-i] for i in range(min(self._n, len(self._rewards)))]
+
+    return {
+        f'last_{self._n}_success': float(np.sum(last_n_rewards) >= 1),
+        f'last_{self._n}_success_1000': np.mean(self._success[-1000:]),
+    }
+
+
+class SavingObserver(observers_base.EnvLoopObserver):
+  """Measures success by whether any of the rewards in an episode are positive.
+  """
+
+  def __init__(self, savedir, save=False, save_sim_state=False):
+    self._savedir = savedir
+    self._save = save
+    self._save_sim_state = save_sim_state
+    self._saved_ep_idx = 1
+
+    if save_sim_state:
+        assert save, f"save: {save} must be True if save_sim_state: {save_sim_state} is True"
+
+    if save:
+        if os.path.isdir(savedir):
+            episode_files = glob(os.path.join(savedir, "*.npz"))
+            get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
+            episode_files = sorted(episode_files, key=get_ep_no)
+            self._saved_ep_idx = get_ep_no(episode_files[-1]) + 1
+        else:
+            os.makedirs(savedir)
+
+
+
+    print(f"\n\nself._saved_ep_idx: {self._saved_ep_idx}\n\n")
+
+  def observe_first(self, env, timestep):
+    """Observes the initial state."""
+    self._step_types = [timestep.step_type]
+    self._rewards = [0]
+    self._discounts = [0]
+    self._observations = [timestep.observation]
+    self._actions = [np.zeros_like(env.action_space.sample())]
+    if self._save_sim_state:
+        sim_state = env.sim.get_state()
+        self._sim_states = [dict(time=sim_state.time,
+                                 qpos=sim_state.qpos,
+                                 qvel=sim_state.qvel,
+                                 act=sim_state.act,
+                                 udd_state=sim_state.udd_state)]
+
+  def observe(self, env, timestep, action):
+    """Records one environment step."""
+    # assert timestep.reward in [0, 1]
+
+    self._step_types.append(timestep.step_type)
+    self._rewards.append(timestep.reward)
+    self._discounts.append(timestep.discount)
+    self._observations.append(timestep.observation)
+    self._actions.append(action)
+
+    if self._save_sim_state:
+        sim_state = env.sim.get_state()
+        self._sim_states.append(dict(time=sim_state.time,
+                                     qpos=sim_state.qpos,
+                                     qvel=sim_state.qvel,
+                                     act=sim_state.act,
+                                     udd_state=sim_state.udd_state))
+
+  def get_metrics(self):
+    """Returns metrics collected for the current episode."""
+    if self._save:
+        assert len(self._observations) == len(self._step_types) == len(self._actions) == len(self._discounts) == len(self._rewards)
+
+        episode = dict(step_type = np.stack(self._step_types),
+                       reward = np.stack(self._rewards),
+                       discount = np.stack(self._discounts),
+                       observation = np.stack(self._observations),
+                       action = np.stack(self._actions))
+
+        if self._save_sim_state:
+            episode["sim_state"] = np.array(self._sim_states)
+
+        length = len(episode['reward'])
+        # filename = os.path.join(self._savedir, f'ep-{self._saved_ep_idx}_len-{length}.npz')
+        filename = os.path.join(self._savedir, f'ep-{self._saved_ep_idx}.npz')
+
+        if os.path.exists(filename):
+            raise ValueError(f"\"{filename}\" already exists.")
+
+        with io.BytesIO() as f1:
+            np.savez_compressed(f1, **episode)
+            f1.seek(0)
+            with open(filename, 'wb') as f2:
+                f2.write(f1.read())
+                # print(f"Saved episode of length {length} to \"{filename}\".")
+
+        self._saved_ep_idx += 1
+
+    # del self._step_types
+    # del self._rewards
+    # del self._step_types
+    # del self._discounts
+    # del self._observations
+    # del self._actions
+    return {}
 
 
 class DistanceObserver(observers_base.EnvLoopObserver):
@@ -219,3 +407,91 @@ class InitiallyRandomActor(actors.GenericActor):
       action, self._state = self._policy(self._params, observation,
                                          self._state)
     return utils.to_numpy(action)
+
+class NoGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, **kwargs):
+        self._obs_dim = obs_dim
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        assert observation.shape[0] % 2 == 0
+        new_obs = observation.copy()
+        new_obs[self._obs_dim:] = 0
+        # action, self._state = self._policy(self._params, new_obs, self._state)
+        action, self._state = self._policy(self._params, new_obs[:self._obs_dim], self._state)
+        return utils.to_numpy(action)
+
+class ZeroGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, **kwargs):
+        self._obs_dim = obs_dim
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        assert observation.shape[0] % 2 == 0
+        new_obs = observation.copy()
+        new_obs[self._obs_dim:] = 0
+        # action, self._state = self._policy(self._params, new_obs, self._state)
+        action, self._state = self._policy(self._params, new_obs, self._state)
+        return utils.to_numpy(action)
+
+class InitiallyRandomNoGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, **kwargs):
+        self._obs_dim = obs_dim
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        if 'mlp/~/linear_0' in self._params:
+            layer_key = 'mlp/~/linear_0'
+        elif 'feedforward_mlp_torso/~/linear' in self._params:
+            layer_key = 'feedforward_mlp_torso/~/linear'
+        else:
+            raise ValueError(self._params.keys())
+
+        # if (self._params['mlp/~/linear_0']['b'] == 0).all():
+        if (self._params[layer_key]['b'] == 0).all():
+            if layer_key == 'mlp/~/linear_0':
+                shape = self._params['Normal/~/linear']['b'].shape
+            else:
+                shape = self._params['near_zero_initialized_linear']['b'].shape
+
+            rng, self._state = jax.random.split(self._state)
+            action = jax.random.uniform(key=rng, shape=shape, minval=-1.0, maxval=1.0)
+        else:
+            assert observation.shape[0] % 2 == 0
+            new_obs = observation.copy()
+            new_obs[self._obs_dim:] = 0
+
+            action, self._state = self._policy(self._params, new_obs[:self._obs_dim], self._state)
+        return utils.to_numpy(action)
+
+
+class InitiallyRandomZeroGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, **kwargs):
+        self._obs_dim = obs_dim
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        if 'mlp/~/linear_0' in self._params:
+            layer_key = 'mlp/~/linear_0'
+        elif 'feedforward_mlp_torso/~/linear' in self._params:
+            layer_key = 'feedforward_mlp_torso/~/linear'
+        else:
+            raise ValueError(self._params.keys())
+
+        # if (self._params['mlp/~/linear_0']['b'] == 0).all():
+        if (self._params[layer_key]['b'] == 0).all():
+            if layer_key == 'mlp/~/linear_0':
+                shape = self._params['Normal/~/linear']['b'].shape
+            else:
+                shape = self._params['near_zero_initialized_linear']['b'].shape
+
+            rng, self._state = jax.random.split(self._state)
+            action = jax.random.uniform(key=rng, shape=shape, minval=-1.0, maxval=1.0)
+        else:
+            assert observation.shape[0] % 2 == 0
+            new_obs = observation.copy()
+            new_obs[self._obs_dim:] = 0
+            # print("\n\nnew_obs.shape:", new_obs.shape)
+            # action, self._state = self._policy(self._params, new_obs, self._state)
+            action, self._state = self._policy(self._params, new_obs, self._state)
+        return utils.to_numpy(action)
