@@ -80,29 +80,54 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
                                                      save_data=False,
                                                      data_save_dir=data_save_dir)
     if evaluator_factories is None:
-      eval_policy_factory = (
-          lambda n: networks.apply_policy_and_sample(n, True))
-      eval_observers = [
-          contrastive_utils.SuccessObserver(),
-          contrastive_utils.DistanceObserver(
-              obs_dim=config.obs_dim,
-              start_index=config.start_index,
-              end_index=config.end_index),
-          contrastive_utils.SavingObserver(
-              data_save_dir,
-              save=save_data,
-              save_sim_state=save_sim_state)
-      ]
-      evaluator_factories = [
-          distributed_layout.default_evaluator_factory(
-              environment_factory=environment_factory,
-              network_factory=network_factory,
-              policy_factory=eval_policy_factory,
-              log_to_bigtable=log_to_bigtable,
-              observers=eval_observers,
-              logdir=self._logdir,
-              wandblogger=self._wandblogger)
-      ]
+      # eval_policy_factory = (
+      #     lambda n: networks.apply_policy_and_sample(n, True))
+      # eval_observers = [
+      #     contrastive_utils.SuccessObserver(),
+      #     contrastive_utils.DistanceObserver(
+      #         obs_dim=config.obs_dim,
+      #         start_index=config.start_index,
+      #         end_index=config.end_index),
+      #     contrastive_utils.SavingObserver(
+      #         data_save_dir,
+      #         save=save_data,
+      #         save_sim_state=save_sim_state)
+      # ]
+      # evaluator_factories = [
+      #     distributed_layout.default_evaluator_factory(
+      #         environment_factory=environment_factory,
+      #         network_factory=network_factory,
+      #         policy_factory=eval_policy_factory,
+      #         log_to_bigtable=log_to_bigtable,
+      #         observers=eval_observers,
+      #         logdir=self._logdir,
+      #         wandblogger=self._wandblogger)
+      # ]
+      evaluator_factories = []
+      for i in range(config.num_evaluators):
+          eval_policy_factory = (
+              lambda n: networks.apply_policy_and_sample(n, True))
+          eval_observers = [
+              contrastive_utils.SuccessObserver(),
+              contrastive_utils.DistanceObserver(
+                  obs_dim=config.obs_dim,
+                  start_index=config.start_index,
+                  end_index=config.end_index),
+              contrastive_utils.SavingObserver(
+                  os.path.join(data_save_dir, f"evaluator_{i}"),
+                  save=save_data,
+                  save_sim_state=save_sim_state)
+          ]
+          evaluator_factories.append(
+            distributed_layout.default_evaluator_factory(
+                  environment_factory=environment_factory,
+                  network_factory=network_factory,
+                  policy_factory=eval_policy_factory,
+                  log_to_bigtable=log_to_bigtable,
+                  observers=eval_observers,
+                  logdir=self._logdir,
+                  wandblogger=self._wandblogger)
+          )
       if config.local:
         evaluator_factories = []
     actor_observers = [

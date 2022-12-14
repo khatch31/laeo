@@ -108,7 +108,13 @@ def make_networks(
     if use_image_obs:
       state, goal = _unflatten_obs(obs)
       # obs = jnp.concatenate([state, goal], axis=-1)
-      obs = state
+      # obs = state
+
+      if slice_actor_goal:
+          obs = state
+      else:
+          obs = jnp.concatenate([state, goal], axis=-1)
+
       obs = TORSO()(obs)
 
     network = hk.Sequential([
@@ -166,9 +172,11 @@ def make_networks(
   dummy_action = utils.add_batch_dim(dummy_action)
   dummy_obs = utils.add_batch_dim(dummy_obs)
 
+  actor_dummy_obs = dummy_obs[:, :obs_dim] if slice_actor_goal else dummy_obs
+
   network = TD3Networks(
       policy_network=networks_lib.FeedForwardNetwork(
-          lambda key: policy.init(key, dummy_obs), policy.apply),
+          lambda key: policy.init(key, actor_dummy_obs), policy.apply),
       critic_network=networks_lib.FeedForwardNetwork(
           lambda key: critic.init(key, dummy_obs, dummy_action), critic.apply),
       twin_critic_network=networks_lib.FeedForwardNetwork(

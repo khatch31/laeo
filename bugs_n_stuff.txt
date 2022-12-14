@@ -354,3 +354,109 @@ Exception: problem
 changed /iris/u/khatch/anaconda3/envs/jaxrlrobocloud/lib/python3.9/site-packages/wandb/sdk/service/service.py
 line 42
 from time_max = time.time() + 30 to time_max = time.time() + 300
+
+
+================================================================
+gym.error.NameNotFound: Environment `halfcheetah-medium-replay` doesn't exist.
+================================================================
+
+Traceback (most recent call last):
+  File "scratch.py", line 18, in <module>
+    run_scratch()
+  File "scratch.py", line 2, in run_scratch
+    import_d4rl_test()
+  File "scratch.py", line 12, in import_d4rl_test
+    env = gym.make("halfcheetah-medium-replay-v1")
+  File "/iris/u/khatch/anaconda3/envs/dombo3/lib/python3.8/site-packages/gym/envs/registration.py", line 676, in make
+    return registry.make(id, **kwargs)
+  File "/iris/u/khatch/anaconda3/envs/dombo3/lib/python3.8/site-packages/gym/envs/registration.py", line 490, in make
+    versions = self.env_specs.versions(namespace, name)
+  File "/iris/u/khatch/anaconda3/envs/dombo3/lib/python3.8/site-packages/gym/envs/registration.py", line 220, in versions
+    self._assert_name_exists(namespace, name)
+  File "/iris/u/khatch/anaconda3/envs/dombo3/lib/python3.8/site-packages/gym/envs/registration.py", line 297, in _assert_name_exists
+    raise error.NameNotFound(message)
+gym.error.NameNotFound: Environment `halfcheetah-medium-replay` doesn't exist. Did you mean: `bullet-halfcheetah-medium-replay`?
+
+The problem is that mjrl isn't installed, and then it fails silently in /iris/u/khatch/d4rl/d4rl/__init__.py
+in
+try:
+    import d4rl.locomotion
+    import d4rl.hand_manipulation_suite
+    import d4rl.pointmaze
+    import d4rl.gym_minigrid
+    import d4rl.gym_mujoco
+except ImportError as e:
+    if not SUPPRESS_MESSAGES:
+        print(_ERROR_MESSAGE % 'Mujoco-based envs', file=sys.stderr)
+        print(e, file=sys.stderr)
+
+in the import d4rl.gym_mujoco line. Fails silently because of the try catch thing
+
+Fix with pip install git+https://github.com/aravindr93/mjrl@master#egg=mjrl
+
+
+================================================================
+ERROR: Could not find a version that satisfies the requirement dm-control>=1.0.3 (from d4rl) (from versions: 0.0.286587932, 0.0.286955599, 0.0.288398964, 0.0.288483845, 0.0.295778102, 0.0.300771433, 0.0.312466143, 0.0.318037100, 0.0.318066097, 0.0.319497192, 0.0.322773188, 0.0.355168290, 0.0.364896371)
+ERROR: No matching distribution found for dm-control>=1.0.3
+================================================================
+ERROR: Could not find a version that satisfies the requirement dm-control>=1.0.3 (from d4rl) (from versions: 0.0.286587932, 0.0.286955599, 0.0.288398964, 0.0.288483845, 0.0.295778102, 0.0.300771433, 0.0.312466143, 0.0.318037100, 0.0.318066097, 0.0.319497192, 0.0.322773188, 0.0.355168290, 0.0.364896371)
+ERROR: No matching distribution found for dm-control>=1.0.3
+
+https://github.com/Farama-Foundation/D4RL/issues/123
+
+upgrade from python3.6 to pytho3.7 or above
+
+
+Also pip install six
+
+
+================================================================
+Protobuf version error
+================================================================
+
+Traceback (most recent call last):
+  File "/iris/u/khatch/anaconda3/envs/dombo/bin/mopo", line 33, in <module>
+    sys.exit(load_entry_point('mopo', 'console_scripts', 'mopo')())
+  File "/iris/u/khatch/anaconda3/envs/dombo/bin/mopo", line 25, in importlib_load_entry_point
+    return next(matches).load()
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/importlib_metadata/__init__.py", line 207, in load
+    module = import_module(match.group('module'))
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1006, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 677, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 728, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/iris/u/khatch/preliminary_experiments/model_based_offline_online/dombo/softlearning/scripts/console_scripts.py", line 26, in <module>
+    from examples.instrument import (
+  File "/iris/u/khatch/preliminary_experiments/model_based_offline_online/dombo/examples/instrument.py", line 27, in <module>
+    from softlearning.misc.utils import datetimestamp, PROJECT_PATH
+  File "/iris/u/khatch/preliminary_experiments/model_based_offline_online/dombo/softlearning/misc/utils.py", line 6, in <module>
+    import tensorflow as tf
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/__init__.py", line 28, in <module>
+    from tensorflow.python import pywrap_tensorflow  # pylint: disable=unused-import
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/python/__init__.py", line 52, in <module>
+    from tensorflow.core.framework.graph_pb2 import *
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/core/framework/graph_pb2.py", line 16, in <module>
+    from tensorflow.core.framework import node_def_pb2 as tensorflow_dot_core_dot_framework_dot_node__def__pb2
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/core/framework/node_def_pb2.py", line 16, in <module>
+    from tensorflow.core.framework import attr_value_pb2 as tensorflow_dot_core_dot_framework_dot_attr__value__pb2
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/core/framework/attr_value_pb2.py", line 16, in <module>
+    from tensorflow.core.framework import tensor_pb2 as tensorflow_dot_core_dot_framework_dot_tensor__pb2
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/core/framework/tensor_pb2.py", line 16, in <module>
+    from tensorflow.core.framework import resource_handle_pb2 as tensorflow_dot_core_dot_framework_dot_resource__handle__pb2
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/tensorflow/core/framework/resource_handle_pb2.py", line 42, in <module>
+    serialized_options=None, file=DESCRIPTOR),
+  File "/iris/u/khatch/anaconda3/envs/dombo/lib/python3.7/site-packages/google/protobuf/descriptor.py", line 560, in __new__
+    _message.Message._CheckCalledFromGeneratedFile()
+TypeError: Descriptors cannot not be created directly.
+If this call came from a _pb2.py file, your generated code is out of date and must be regenerated with protoc >= 3.19.0.
+If you cannot immediately regenerate your protos, some other possible workarounds are:
+ 1. Downgrade the protobuf package to 3.20.x or lower.
+ 2. Set PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python (but this will use pure-Python parsing and will be much slower).
+
+More information: https://developers.google.com/protocol-buffers/docs/news/2022-05-06#python-updates
+
+Solution: pip install protobuf==3.6.1

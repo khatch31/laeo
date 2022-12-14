@@ -98,6 +98,7 @@ class ContrastiveConfigGoals:
 
   val_interval: int = 100
   mse_bc_loss: bool = False
+  n_success_examples: int = 200
 
 def target_entropy_from_env_spec(
     spec,

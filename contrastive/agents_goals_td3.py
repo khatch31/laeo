@@ -87,6 +87,7 @@ class DistributedContrastiveGoalsTD3(distributed_layout_goals_td3.DistributedLay
       eval_policy_factory = (
           lambda n: networks.apply_policy_and_sample(n, True))
       eval_observers = [
+          contrastive_utils.ReturnObserver(),
           contrastive_utils.SuccessObserver(),
           contrastive_utils.LastNSuccessObserver(1),
           contrastive_utils.LastNSuccessObserver(5),

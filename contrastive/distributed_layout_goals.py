@@ -289,7 +289,7 @@ class DistributedLayoutGoals:
                         else:
                             assert episode["step_type"][t] == dm_env.StepType.MID
 
-                        val_adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                        val_adder.add(action=episode['action'][t].astype(np.float32), next_timestep=ts)  # pytype: disable=attribute-error
                 else: # Add to train replay buffer
                     train_examples_added += 1
                     if t == 0:
@@ -301,7 +301,7 @@ class DistributedLayoutGoals:
                         else:
                             assert episode["step_type"][t] == dm_env.StepType.MID
 
-                        adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                        adder.add(action=episode['action'][t].astype(np.float32), next_timestep=ts)  # pytype: disable=attribute-error
 
 
         print(f"\n\nval_examples_added: {val_examples_added}, train_examples_added: {train_examples_added}")
@@ -309,10 +309,9 @@ class DistributedLayoutGoals:
         # assert len(episode_files) - len(val_ep_idxs) == train_eps_added
 
         if expert_goals is None:
-            N_EXAMPLES = 200
             idxs = np.arange(len(expert_goals_list))
             np.random.shuffle(idxs)
-            idxs = idxs[:N_EXAMPLES]
+            idxs = idxs[:self._builder._config.n_success_examples]
             expert_goals = [expert_goals_list[i] for i in idxs]
             expert_goals = np.stack(expert_goals)
             os.makedirs(os.path.join(os.getcwd(), "debug_images"), exist_ok=True)

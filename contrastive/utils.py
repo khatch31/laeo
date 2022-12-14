@@ -62,6 +62,35 @@ def count_episodes(data_load_dir, val_size):
     assert len(train_ep_idxs) + len(val_ep_idxs) == len(all_ep_idxs)
     return len(train_ep_idxs), len(val_ep_idxs)
 
+class ReturnObserver(observers_base.EnvLoopObserver):
+  """Measures success by whether any of the rewards in an episode are positive.
+  """
+
+  def __init__(self):
+    self._rewards = []
+    self._returns = []
+
+  def observe_first(self, env, timestep
+                    ):
+    """Observes the initial state."""
+    if self._rewards:
+      returns = np.sum(self._rewards)
+      self._returns.append(returns)
+    self._rewards = []
+
+  def observe(self, env, timestep,
+              action):
+    """Records one environment step."""
+
+    self._rewards.append(timestep.reward)
+
+  def get_metrics(self):
+    """Returns metrics collected for the current episode."""
+    return {
+        'return': float(np.sum(self._rewards)),
+        'return_1000': np.mean(self._returns[-1000:]),
+    }
+
 class SuccessObserver(observers_base.EnvLoopObserver):
   """Measures success by whether any of the rewards in an episode are positive.
   """
@@ -81,8 +110,13 @@ class SuccessObserver(observers_base.EnvLoopObserver):
   def observe(self, env, timestep,
               action):
     """Records one environment step."""
-    assert timestep.reward in [0, 1]
-    self._rewards.append(timestep.reward)
+
+    info = env.get_info()
+    if "success" in info:
+        self._rewards.append(info["success"])
+    else:
+        assert timestep.reward in [0, 1]
+        self._rewards.append(timestep.reward)
 
   def get_metrics(self):
     """Returns metrics collected for the current episode."""
@@ -114,8 +148,12 @@ class LastNSuccessObserver(observers_base.EnvLoopObserver):
   def observe(self, env, timestep,
               action):
     """Records one environment step."""
-    assert timestep.reward in [0, 1]
-    self._rewards.append(timestep.reward)
+    info = env.get_info()
+    if "success" in info:
+        self._rewards.append(info["success"])
+    else:
+        assert timestep.reward in [0, 1]
+        self._rewards.append(timestep.reward)
 
   def get_metrics(self):
     """Returns metrics collected for the current episode."""
@@ -150,6 +188,8 @@ class SavingObserver(observers_base.EnvLoopObserver):
         else:
             os.makedirs(savedir)
 
+
+
     print(f"\n\nself._saved_ep_idx: {self._saved_ep_idx}\n\n")
 
   def observe_first(self, env, timestep):
@@ -169,7 +209,7 @@ class SavingObserver(observers_base.EnvLoopObserver):
 
   def observe(self, env, timestep, action):
     """Records one environment step."""
-    assert timestep.reward in [0, 1]
+    # assert timestep.reward in [0, 1]
 
     self._step_types.append(timestep.step_type)
     self._rewards.append(timestep.reward)
@@ -211,6 +251,7 @@ class SavingObserver(observers_base.EnvLoopObserver):
             f1.seek(0)
             with open(filename, 'wb') as f2:
                 f2.write(f1.read())
+                # print(f"Saved episode of length {length} to \"{filename}\".")
 
         self._saved_ep_idx += 1
 

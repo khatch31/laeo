@@ -94,7 +94,7 @@ class ContrastiveConfigGoalsTD3:
   use_l2_reward: bool = False
   sigmoid_q: bool = False
   hardcode_r: float = None
-  shift_learned_reward: bool = False 
+  shift_learned_reward: bool = False
 
   ###
 
@@ -122,6 +122,8 @@ class ContrastiveConfigGoalsTD3:
   samples_per_insert: float = 256
   samples_per_insert_tolerance_rate: float = 0.1
   bc_alpha: Optional[float] = None
+
+  n_success_examples: int = 200
 
 def target_entropy_from_env_spec(
     spec,

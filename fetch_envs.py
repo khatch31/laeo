@@ -18,6 +18,8 @@
 import gym
 from gym.envs.robotics.fetch import push
 from gym.envs.robotics.fetch import reach
+from gym.envs.robotics.fetch import slide
+from gym.envs.robotics.fetch import pick_and_place
 import numpy as np
 
 
@@ -29,6 +31,111 @@ class ObsDictWrapper:
         if attr == '_wrapped_env':
             raise AttributeError()
         return getattr(self._env, attr)
+
+class FetchSlideEnv(slide.FetchSlideEnv):
+    def __init__(self, dense_reward=False):
+      super(FetchSlideEnv, self).__init__()
+      self._old_observation_space = self.observation_space
+      self._new_observation_space = gym.spaces.Box(
+          low=np.full((50,), -np.inf),
+          high=np.full((50,), np.inf),
+          dtype=np.float32)
+      self.observation_space = self._new_observation_space
+
+      self._dense_reward = dense_reward
+
+    def reset(self):
+      self.observation_space = self._old_observation_space
+      s = super(FetchSlideEnv, self).reset()
+      self.observation_space = self._new_observation_space
+      return self.observation(s)
+
+    def step(self, action):
+      # s, _, _, _ = super(FetchSlideEnv, self).step(action)
+      s, r, _, info = super(FetchSlideEnv, self).step(action)
+      done = False
+      dist = np.linalg.norm(s['achieved_goal'] - s['desired_goal'])
+      if self._dense_reward:
+          info = {"success":float(dist < 0.05)}
+      else:
+          r = float(dist < 0.05)  # Default from Fetch environment.
+          info = {}
+      return self.observation(s), r, done, info
+
+    def observation(self, observation):
+        start_index = 3
+        end_index = 6
+        goal_pos_1 = observation['achieved_goal']
+        goal_pos_2 = observation['observation'][start_index:end_index]
+        assert np.all(goal_pos_1 == goal_pos_2)
+        s = observation['observation']
+        g = np.zeros_like(s)
+        g[start_index:end_index] = observation['desired_goal']
+        # print(f"\ns.shape: {s.shape}, g.shape: {g.shape}")
+        # print(f"s {s}, g: {g}")
+        return np.concatenate([s, g]).astype(np.float32)
+
+class FetchSlideEnvGoals(FetchSlideEnv):
+    def _sample_goal(self):
+        goal = np.array([1.6, 0.9, 0.41401894])
+        return goal
+
+    def get_expert_goals(self):
+        return None
+
+
+class FetchPickAndPlaceEnv(pick_and_place.FetchPickAndPlaceEnv):
+    def __init__(self, dense_reward=False):
+      super(FetchPickAndPlaceEnv, self).__init__()
+      self._old_observation_space = self.observation_space
+      self._new_observation_space = gym.spaces.Box(
+          low=np.full((50,), -np.inf),
+          high=np.full((50,), np.inf),
+          dtype=np.float32)
+      self.observation_space = self._new_observation_space
+
+      self._dense_reward = dense_reward
+
+    def reset(self):
+      self.observation_space = self._old_observation_space
+      s = super(FetchPickAndPlaceEnv, self).reset()
+      self.observation_space = self._new_observation_space
+      return self.observation(s)
+
+    def step(self, action):
+      # s, _, _, _ = super(FetchPickAndPlaceEnv, self).step(action)
+      s, r, _, info = super(FetchPickAndPlaceEnv, self).step(action)
+      done = False
+      dist = np.linalg.norm(s['achieved_goal'] - s['desired_goal'])
+      if self._dense_reward:
+          info = {"success":float(dist < 0.05)}
+      else:
+          r = float(dist < 0.05)  # Default from Fetch environment.
+          info = {}
+
+      return self.observation(s), r, done, info
+
+    def observation(self, observation):
+        start_index = 3
+        end_index = 6
+        goal_pos_1 = observation['achieved_goal']
+        goal_pos_2 = observation['observation'][start_index:end_index]
+        assert np.all(goal_pos_1 == goal_pos_2)
+        s = observation['observation']
+        g = np.zeros_like(s)
+        g[start_index:end_index] = observation['desired_goal']
+        # print(f"\ns.shape: {s.shape}, g.shape: {g.shape}")
+        # print(f"s {s}, g: {g}")
+        return np.concatenate([s, g]).astype(np.float32)
+
+
+class FetchPickAndPlaceEnvGoals(FetchPickAndPlaceEnv):
+    def _sample_goal(self):
+        goal = np.array([1.4, 0.7, 0.85])
+        return goal
+
+    def get_expert_goals(self):
+        return None
 
 class FetchReachEnv(reach.FetchReachEnv):
   """Wrapper for the FetchReach environment."""
@@ -761,72 +868,22 @@ class FetchPushEnv3Goals(FetchPushEnv3):
     def get_expert_goals(self):
         return None
 
-# RGB
-# RED = (255, 0, 0)
-# GREEN = (0, 255, 0)
-# BLUE = (0, 0, 255)
-# PURPLE = (255, 0, 255)
-# YELLOW = (255, 255, 0)
-# BLUEGREEN = (0, 255, 255)
-# BLACK = (0, 0, 0)
-# WHITE = (255, 255, 255)
-
-class FetchPushImageGoalsRandColors(FetchPushImageGoals):
+class FetchPushImageMinimalGoalsColors(FetchPushImageMinimalGoals):
     def reset(self):
-        # TRAIN_COLORS =
-        # TEST_COLORS =
+
         self.sim.model.geom_rgba[23, :3] = np.random.uniform(0, 1, 3)
-        return super(FetchPushImageGoalsRandColors, self).reset()
-        # self.sim.model.geom_rgba[23, :3] = np.random.uniform(0, 1, 3)
+        return super(FetchPushImageMinimalGoalsColors, self).reset()
 
-class FetchPushImageGoalsRED(FetchPushImageGoals):
-    def reset(self):
-        # TRAIN_COLORS =
-        # TEST_COLORS =
-        self.sim.model.geom_rgba[23, :3] = np.array([0.5, 0, 0])
-        return super(FetchPushImageGoalsRED, self).reset()
-
-#     env.reset() method:
-# env = pick_and_place.FetchPickAndPlaceEnv()
-# env.sim.model.site_rgba[:, -1] = 0.0  # hide the goal marker
-# # env.sim.model.geom_rgba[2:5, -1] = 0.0  # hide the lasers
-#
-# Attached are some example images. Once the color is set, it stays the same until it is set again; you don't need to set the color after each env.step.
-class FetchPushImageGoalsOccluded(FetchPushImageGoals):
+class FetchPushImageMinimalGoalsOccluded(FetchPushImageMinimalGoals):
     def _viewer_setup(self):
-
-      super(FetchPushImage, self)._viewer_setup()
-      # if self._camera_name == 'camera1':
-      #   self.viewer.cam.lookat[Ellipsis] = np.array([1.2, 0.8, 0.4])
-      #   self.viewer.cam.distance = 0.9
-      #   self.viewer.cam.azimuth = 180
-      #   self.viewer.cam.elevation = -40
-      # elif self._camera_name == 'camera2':
-      #   self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
-      #   self.viewer.cam.distance = 0.65
-      #   self.viewer.cam.azimuth = 90
-      #   self.viewer.cam.elevation = -40
-      # elif self._camera_name == 'camera3':
-      #   self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
-      #   self.viewer.cam.distance = 0.9
-      #   self.viewer.cam.azimuth = 90
-      #   self.viewer.cam.elevation = -40
-      # else:
-      #   raise NotImplementedError
-
+      super(FetchPushImageMinimalGoalsOccluded, self)._viewer_setup()
       self.viewer.cam.lookat[Ellipsis] = np.array([1.25, 0.8, 0.4])
       self.viewer.cam.distance = 0.7
       self.viewer.cam.azimuth = 180.0
       self.viewer.cam.elevation = -80.0
 
-# env = pick_and_place.FetchPickAndPlaceEnv()
-# env.sim.model.site_rgba[:, -1] = 0.0
-# env.sim.model.geom_rgba[2:5, -1] = 0.0  # hide the lasers
-# env.render(mode='rgb_array', height=1024, width=1024)
-#
-# img = env.render(mode='rgb_array', height=1024, width=1024)
-# plt.imshow(img)
-# plt.show()
+
+
 
 """
 class FetchPushImageMinimal(push.FetchPushEnv):

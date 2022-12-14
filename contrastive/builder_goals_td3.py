@@ -106,12 +106,12 @@ class ContrastiveBuilderGoalsTD3(builders.ActorLearnerBuilder):
                                                     device='cpu')
     if self._config.use_random_actor:
       # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
-      ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
-      # ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
+      # ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
+      ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
     else:
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
-      ACTOR = contrastive_utils.NoGoalActor
-      # ACTOR = contrastive_utils.ZeroGoalActor
+      # ACTOR = contrastive_utils.NoGoalActor
+      ACTOR = contrastive_utils.ZeroGoalActor
     return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=True)
 
   def make_replay_tables(

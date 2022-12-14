@@ -42,6 +42,8 @@ from contrastive.default_logger import make_default_logger
 from glob import glob
 import os
 
+import time
+
 
 ActorId = int
 AgentNetwork = Any
@@ -268,37 +270,60 @@ class DistributedLayout:
         if self._builder._config.local and t > 10_000:  # pytype: disable=attribute-error, pylint: disable=protected-access
           break
 
-    if self._builder._config.env_name.startswith('offline_fetch')  or self._builder._config.env_name.startswith('offline_push'):
+    use_image_obs = self._builder._config.use_image_obs
+    # if self._builder._config.env_name.startswith('offline_fetch') or self._builder._config.env_name.startswith('offline_push'):
+    if "offline" in self._builder._config.env_name or self._builder._config.preload_buffer:
         assert self._data_load_dir is not None
         adder = self._builder.make_adder(replay, force_no_save=True)
 
-        episode_files = glob(os.path.join(self._data_load_dir, "*.npz"))
+        episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
         episode_files = sorted(episode_files, key=get_ep_no)
+        # episode_files = sorted(episode_files, key=get_ep_no, reverse=True) # j = 0
+
+        train_examples_added = 0
+
         # j = 0
-        for episode_file in tqdm.tqdm(episode_files, total=len(episode_files), desc="Loading episode files"):
+        for ep_idx, episode_file in tqdm.tqdm(enumerate(episode_files), total=len(episode_files), desc="Loading episode files"):
             # j += 1
-            # if j > 1000:
+            # if j > 500:
             #     break
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
                 episode = {k: episode[k] for k in episode.keys()}
 
             assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
+            if use_image_obs:
+                assert len(episode["observation"]) == len(episode["image"])
 
             for t in range(episode["observation"].shape[0]):
+                if use_image_obs:
+                    obs = np.concatenate((episode['image'][t], episode['goal_image']), axis=0)#.astype(np.float32)
+                else:
+                    obs = episode['observation'][t]
+
                 ts = dm_env.TimeStep(
                     step_type=episode["step_type"][t],
                     reward=episode['reward'][t],
                     discount=episode["discount"][t],
-                    observation=episode['observation'][t],
+                    observation=obs,
                 )
+
+                # Add to train replay buffer
+                train_examples_added += 1
                 if t == 0:
                     assert episode["step_type"][t] == dm_env.StepType.FIRST
                     adder.add_first(ts)  # pytype: disable=attribute-error
                 else:
-                    assert episode["step_type"][t] == dm_env.StepType.LAST if t == episode["observation"].shape[0] -1 else dm_env.StepType.MID
-                    adder.add(action=episode['action'][t], next_timestep=ts)  # pytype: disable=attribute-error
+                    if t == episode["observation"].shape[0] - 1:
+                        assert episode["step_type"][t] == dm_env.StepType.LAST
+                    else:
+                        assert episode["step_type"][t] == dm_env.StepType.MID
+
+                    adder.add(action=episode['action'][t].astype(np.float32), next_timestep=ts)  # pytype: disable=attribute-error
+                # time.sleep(0.001)
+
+        print(f"\n\ntrain_examples_added: {train_examples_added}")
 
     iterator = self._builder.make_dataset_iterator(replay)
 
@@ -329,6 +354,7 @@ class DistributedLayout:
     kwargs = {}
     if self._checkpointing_config:
       kwargs = vars(self._checkpointing_config)
+
     # Return the learning agent.
     return savers.CheckpointingRunner(
         learner,

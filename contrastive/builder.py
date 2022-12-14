@@ -122,6 +122,8 @@ class ContrastiveBuilder(builders.ActorLearnerBuilder):
         min_size_to_sample=min_replay_traj,
         samples_per_insert=self._config.samples_per_insert,
         error_buffer=error_buffer)
+
+    print("\nenvironment_spec:", environment_spec)
     return [
         reverb.Table(
             name=self._config.replay_table_name,

@@ -109,6 +109,9 @@ flags.DEFINE_integer('num_parallel_calls', 4, 'description.')
 flags.DEFINE_bool('repr_norm', False, 'repr_norm.')
 flags.DEFINE_bool('mse_bc_loss', False, 'mse_bc_loss.')
 
+flags.DEFINE_integer('n_success_examples', 200, 'description.')
+
+
 
 
 
@@ -286,6 +289,7 @@ def main(_):
   params["use_td"] = FLAGS.use_td
 
   params["reward_loss_type"] = FLAGS.reward_loss_type
+  params["n_success_examples"] = FLAGS.n_success_examples
   params["use_sarsa"] = FLAGS.use_sarsa
   params["use_true_reward"] = FLAGS.use_true_reward
   params["use_l2_reward"] = FLAGS.use_l2_reward
@@ -324,7 +328,8 @@ def main(_):
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
 
-  if env_name.startswith('offline_fetch'):
+
+  if env_name.startswith('offline'):
     assert FLAGS.data_load_dir is not None
 
     params.update({
@@ -333,6 +338,8 @@ def main(_):
         'samples_per_insert_tolerance_rate': 100_000_000.0,
         'random_goals': 0.0,
     })
+
+
 
   # For the offline RL experiments, modify some hyperparameters.
   if env_name.startswith('offline_ant'):
@@ -367,7 +374,6 @@ def main(_):
 
   program = get_program(params)
   # Set terminal='tmux' if you want different components in different windows.
-
   lp.launch(program, terminal='current_terminal')
   # local_resources = dict(actor=lp.PythonProcess(env=dict(XLA_PYTHON_CLIENT_MEM_FRACTION='0.1')))
   # lp.launch(program, terminal='current_terminal', local_resources=local_resources)

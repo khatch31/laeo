@@ -109,6 +109,8 @@ flags.DEFINE_integer('seed', 0, 'description.')
 flags.DEFINE_integer('prefetch_size', 4, 'description.')
 flags.DEFINE_integer('num_parallel_calls', 4, 'description.')
 
+flags.DEFINE_integer('n_success_examples', 200, 'description.')
+
 
 class ObjectDict(object):
     def __init__(self, dict):
@@ -289,6 +291,7 @@ def main(_):
   params["use_td"] = FLAGS.use_td
 
   params["reward_loss_type"] = FLAGS.reward_loss_type
+  params["n_success_examples"] = FLAGS.n_success_examples
   params["use_sarsa"] = FLAGS.use_sarsa
   params["use_true_reward"] = FLAGS.use_true_reward
   params["use_l2_reward"] = FLAGS.use_l2_reward
@@ -323,7 +326,7 @@ def main(_):
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
 
-  if env_name.startswith('offline_fetch'):
+  if env_name.startswith('offline'):
     assert FLAGS.data_load_dir is not None
 
     params.update({

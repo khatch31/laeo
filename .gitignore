@@ -1,2 +1,5 @@
 .remote-sync.json
 __pycache__
+scripts/
+scripts_/
+misc_scripts/

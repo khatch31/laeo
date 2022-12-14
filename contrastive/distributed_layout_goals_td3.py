@@ -311,10 +311,9 @@ class DistributedLayoutGoalsTD3:
         # assert len(episode_files) - len(val_ep_idxs) == train_eps_added
 
         if expert_goals is None:
-            N_EXAMPLES = 200
             idxs = np.arange(len(expert_goals_list))
             np.random.shuffle(idxs)
-            idxs = idxs[:N_EXAMPLES]
+            idxs = idxs[:self._builder._config.n_success_examples]
             expert_goals = [expert_goals_list[i] for i in idxs]
             expert_goals = np.stack(expert_goals)
             os.makedirs(os.path.join(os.getcwd(), "debug_images"), exist_ok=True)
@@ -378,7 +377,7 @@ class DistributedLayoutGoalsTD3:
     networks = self._network_factory(specs.make_environment_spec(environment))
     policy_network = self._policy_network(networks)
     actor = self._builder.make_actor(random_key=actor_key,
-                                     policy=policy_network,
+                                     policy_network=policy_network,
                                      # environment_spec=None,
                                      variable_source=variable_source,
                                      adder=adder)

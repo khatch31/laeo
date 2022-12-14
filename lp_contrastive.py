@@ -81,8 +81,14 @@ flags.DEFINE_float('bc_coef', 0, 'description.')
 flags.DEFINE_bool('twin_q', True, 'description.')
 
 flags.DEFINE_bool('save_sim_state', False, 'description.')
+flags.DEFINE_bool('preload_buffer', False, 'description.')
+
 
 flags.DEFINE_integer('seed', 0, 'description.')
+
+flags.DEFINE_integer('num_evaluators', 1, 'description.')
+
+
 
 
 @functools.lru_cache()
@@ -115,12 +121,14 @@ def get_program(params):
   config = contrastive.ContrastiveConfig(**params)
 
   print("config.num_sgd_steps_per_step:", config.num_sgd_steps_per_step)
+  print("config.max_number_of_steps:", config.max_number_of_steps)
 
   env_factory = lambda seed: contrastive_utils.make_environment(  # pylint: disable=g-long-lambda
       env_name, config.start_index, config.end_index, seed)
 
   env_factory_no_extra = lambda seed: env_factory(seed)[0]  # Remove obs_dim.
   environment, obs_dim = get_env(env_name, config.start_index, config.end_index)
+  print("environment:", environment)
   assert (environment.action_spec().minimum == -1).all()
   assert (environment.action_spec().maximum == 1).all()
   environment.reset()
@@ -216,6 +224,12 @@ def main(_):
   params["twin_q"] = FLAGS.twin_q
 
   params["seed"] = FLAGS.seed
+  params["num_evaluators"] = FLAGS.num_evaluators
+  params["preload_buffer"] = FLAGS.preload_buffer
+
+
+
+
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -241,7 +255,7 @@ def main(_):
   else:
     raise NotImplementedError('Unknown method: %s' % alg)
 
-  if env_name.startswith('offline_fetch'):
+  if env_name.startswith('offline') or params["preload_buffer"]:
     assert FLAGS.data_load_dir is not None
 
     params.update({

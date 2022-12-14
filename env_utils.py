@@ -57,33 +57,69 @@ def load(env_name):
   """Loads the train and eval environments, as well as the obs_dim."""
   # pylint: disable=invalid-name
   kwargs = {}
-  if env_name == 'sawyer_push':
-    CLASS = SawyerPush
-    max_episode_steps = 150
-  elif env_name == 'sawyer_drawer':
-    CLASS = SawyerDrawer
-    max_episode_steps = 150
-  elif env_name == 'sawyer_drawer_image':
-    CLASS = SawyerDrawerImage
-    max_episode_steps = 50
-    kwargs['task'] = 'openclose'
-  elif env_name == 'sawyer_window_image':
-    CLASS = SawyerWindowImage
-    kwargs['task'] = 'openclose'
-    max_episode_steps = 50
-  elif env_name == 'sawyer_push_image':
-    CLASS = SawyerPushImage
-    max_episode_steps = 150
-    kwargs['start_at_obj'] = True
-  elif env_name == 'sawyer_bin':
-    CLASS = SawyerBin
-    max_episode_steps = 150
-  elif env_name == 'sawyer_bin_image':
-    CLASS = SawyerBinImage
-    max_episode_steps = 150
-  elif env_name == 'sawyer_window':
-    CLASS = SawyerWindow
-    max_episode_steps = 150
+
+  if "sawyer" in env_name:
+      if "offline" in env_name:
+          env_name = env_name[:][len("offline_"):]
+          print("env_name:", env_name)
+
+      if env_name == 'sawyer_push':
+        CLASS = SawyerPush
+        max_episode_steps = 150
+      if env_name == 'sawyer_push-goals':
+        CLASS = SawyerPushGoals
+        max_episode_steps = 150
+      elif env_name == 'sawyer_drawer':
+        CLASS = SawyerDrawer
+        max_episode_steps = 150
+      elif env_name == "sawyer_drawer-goals":
+        CLASS = SawyerDrawerGoals
+        max_episode_steps = 150
+      elif env_name == 'sawyer_drawer_image':
+        CLASS = SawyerDrawerImage
+        max_episode_steps = 50
+        kwargs['task'] = 'openclose'
+      elif env_name == 'sawyer_window_image':
+        CLASS = SawyerWindowImage
+        kwargs['task'] = 'openclose'
+        max_episode_steps = 50
+      elif env_name == 'sawyer_push_image':
+        CLASS = SawyerPushImage
+        max_episode_steps = 150
+        kwargs['start_at_obj'] = True
+      elif env_name == 'sawyer_bin':
+        CLASS = SawyerBin
+        max_episode_steps = 150
+      elif env_name == 'sawyer_bin-goals':
+        CLASS = SawyerBinGoals
+        max_episode_steps = 150
+      elif env_name == 'sawyer_bin_image':
+        CLASS = SawyerBinImage
+        max_episode_steps = 150
+      elif env_name == 'sawyer_window':
+        CLASS = SawyerWindow
+        max_episode_steps = 150
+      elif env_name == 'sawyer_window-goals':
+        CLASS = SawyerWindowGoals
+        max_episode_steps = 150
+      elif env_name == "sawyer_window_image_minimal-goals":
+        CLASS = SawyerWindowImageMinimalGoals
+        max_episode_steps = 150
+      # elif env_name == "sawyer_lever_pull-goals":
+      #   CLASS = SawyerLeverPullGoalsV2
+      #   max_episode_steps = 150
+      elif "sawyer_lever_pull-goals" in env_name:
+        CLASS = SawyerLeverPullGoalsV2
+        max_episode_steps = 150
+
+        if "no-random" in env_name:
+            kwargs['random_resets'] = False
+      elif env_name == "sawyer_dial_turn-goals":
+        CLASS = SawyerDialTurnGoalsV2
+        max_episode_steps = 150
+
+
+
   elif "ceborl" in env_name:
       # Eg: offline_ceborl-dial_turn
       max_episode_steps = 50
@@ -124,14 +160,19 @@ def load(env_name):
           if "image" in env_name:
               kwargs['rand_y'] = True
               if "goals" in env_name:
-                  if "colors" in env_name:
-                      CLASS = fetch_envs.FetchPushImageGoalsRandColors
-                  elif "red" in env_name:
-                      CLASS = fetch_envs.FetchPushImageGoalsRED
-                  elif "occluded" in env_name:
-                      CLASS = fetch_envs.FetchPushImageGoalsOccluded
-                  elif "minimal" in env_name:
-                      CLASS = fetch_envs.FetchPushImageMinimalGoals
+                  # if "colors" in env_name:
+                      # CLASS = fetch_envs.FetchPushImageGoalsRandColors
+                  # elif "red" in env_name:
+                  #     CLASS = fetch_envs.FetchPushImageGoalsRED
+                  # elif "occluded" in env_name:
+                  #     CLASS = fetch_envs.FetchPushImageGoalsOccluded
+                  if "minimal" in env_name:
+                      if "colors" in env_name:
+                          CLASS = fetch_envs.FetchPushImageMinimalGoalsColors
+                      elif "occluded" in env_name:
+                          CLASS = fetch_envs.FetchPushImageMinimalGoalsOccluded
+                      else:
+                          CLASS = fetch_envs.FetchPushImageMinimalGoals
                   elif "samelocreset" in env_name:
                       CLASS = fetch_envs.FetchPushImageMinimalSameLocResetGoals
                   else:
@@ -159,13 +200,41 @@ def load(env_name):
               kwargs['same_block_start_pos'] = True
               kwargs['rand_y'] = False
 
-      if "goals" in env_name and "no-noise" in env_name:
-          kwargs["add_goal_noise"] = False
-      elif "goals" in env_name:
-          kwargs["add_goal_noise"] = True
+          if "natg" in env_name:
+              kwargs["use_natural_goal"] = True
 
-      if "natg" in env_name:
-          kwargs["use_natural_goal"] = True
+      elif "fetch_slide" in env_name:
+          if "image" in env_name:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchSlideImageGoals
+              else:
+                  CLASS = fetch_envs.FetchSlideImage
+          else:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchSlideEnvGoals
+              else:
+                  CLASS = fetch_envs.FetchSlideEnv
+      elif "fetch_pick_and_place" in env_name:
+          if "image" in env_name:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchPickAndPlaceImageGoals
+              else:
+                  CLASS = fetch_envs.FetchPickAndPlaceImage
+          else:
+              if "goals" in env_name:
+                  CLASS = fetch_envs.FetchPickAndPlaceEnvGoals
+              else:
+                  CLASS = fetch_envs.FetchPickAndPlaceEnv
+
+
+      if "push" in env_name or "reach" in env_name:
+          if "goals" in env_name and "no-noise" in env_name:
+              kwargs["add_goal_noise"] = False
+          elif "goals" in env_name:
+              kwargs["add_goal_noise"] = True
+
+      if "dense" in env_name:
+          kwargs["dense_reward"] = True
 
   elif env_name.startswith('ant_'):
     _, map_name = env_name.split('_')
@@ -215,6 +284,7 @@ def load(env_name):
   return gym_env, obs_dim, max_episode_steps
 
 
+
 class SawyerPush(metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['push-v2']):
   """Wrapper for the SawyerPush environment."""
 
@@ -261,6 +331,39 @@ class SawyerPush(metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['push-v2']):
     return obs, r, False, {}
 
 
+
+class SawyerPushGoals(SawyerPush):
+    def __init__(self,
+                 goal_min_x=-0.1,
+                 goal_min_y=0.5,
+                 goal_max_x=0.1,
+                 goal_max_y=0.9):
+      super(SawyerPush, self).__init__()
+      self._random_reset_space.low[3] = 0
+      self._random_reset_space.low[4] = 0
+      self._random_reset_space.high[3] = 0
+      self._random_reset_space.high[4] = 0
+      self._partially_observable = False
+      self._freeze_rand_vec = False
+      self._set_task_called = True
+      self.reset()
+      self._freeze_rand_vec = True  # Set False to randomize the goal position.
+
+    def get_expert_goals(self):
+      return None
+
+    def _get_orig_obs(self):
+        return super(SawyerPush, self)._get_obs()
+
+    def render(self, mode="rgb_array", size=(64, 64), hide_target=True):
+        if hide_target:
+            self.sim.data.site_xpos[0] = 1_000_000
+        img = self.sim.render(size[0], size[1], camera_name="corner2")
+        # img = np.flip(img, axis=0)
+        return img
+
+
+
 class SawyerDrawer(
     metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['drawer-close-v2']):
   """Wrapper for the SawyerDrawer environment."""
@@ -281,10 +384,14 @@ class SawyerDrawer(
 
   def reset_model(self):
     super(SawyerDrawer, self).reset_model()
+    # First set it to a random location, set as target pos
     self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
     self._target_pos = self._get_pos_objects().copy()
 
+    # Then randomly reset it for real
     self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+    assert False
+
     return self._get_obs()
 
   @property
@@ -301,12 +408,191 @@ class SawyerDrawer(
     obj = self._get_pos_objects()
     # Arm position is same as drawer position. We only provide the drawer
     # Y coordinate.
-    return np.concatenate([tcp_center, [obj[1]],
-                           self._target_pos, [self._target_pos[1]]])
+    return np.concatenate([tcp_center, [obj[1]], self._target_pos, [self._target_pos[1]]]).astype(np.float32)
 
   def step(self, action):
     obs = super(SawyerDrawer, self).step(action)
     return obs, 0.0, False, {}
+
+
+class SawyerDrawerGoals(SawyerDrawer):
+    def reset_model(self):
+      super(SawyerDrawer, self).reset_model() # This goes back two layers
+
+      # # First set it to a random location, set as target pos
+      # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+      # self._target_pos = self._get_pos_objects().copy()
+
+      # Then randomly reset it for real
+      self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+      # print("self._target_pos:", self._target_pos)
+      return self._get_obs()
+
+    def get_expert_goals(self):
+        return None
+
+    def step(self, action):
+        obs, reward, done, info = super(SawyerDrawerGoals, self).step(action)
+        # dist = abs(obs[3] - obs[7])
+        # reward = float(dist < 0.02)
+        obj = self._get_pos_objects()
+        target_pos = obs[4:7]
+        dist = np.linalg.norm(obj - target_pos)
+        reward = float(dist < 0.01)
+        return obs, reward, done, info
+
+
+class SawyerDialTurnGoalsV2(
+    metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['dial-turn-v2']):
+    """Wrapper for the SawyerLeverPull environment."""
+
+    def __init__(self):
+      super(SawyerDialTurnGoalsV2, self).__init__()
+      self._random_reset_space.low[:2] = np.array([-0.4, 0.7]) ###$$$###
+      self._random_reset_space.high[:2] = np.array([0.4, 0.8]) ###$$$###
+
+      self._partially_observable = False
+      self._freeze_rand_vec = False
+      self._set_task_called = True
+      self._target_pos = np.zeros(3)  # We will overwrite this later.
+      # self._target_pos = np.array([-0.14660674,  0.71726966,  0.45])
+      self.reset()
+      self._freeze_rand_vec = False  # Set False to randomize the goal position.
+
+
+    def reset_model(self):
+      super(SawyerDialTurnGoalsV2, self).reset_model()
+      # self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
+      # self._target_pos = self._get_pos_objects().copy()
+      self.data.set_joint_qpos('knob_Joint_1', np.random.uniform(0., 0.2)) ###???###
+      return self._get_obs()
+
+    @property
+    def observation_space(self):
+      return gym.spaces.Box(
+          low=np.full(12, -np.inf),
+          high=np.full(12, np.inf),
+          dtype=np.float32)
+
+    def _get_orig_obs(self):
+        return super(SawyerDialTurnGoalsV2, self)._get_obs()
+
+    def _get_obs(self):
+      finger_right, finger_left = (self._get_site_pos('rightEndEffector'),
+                                   self._get_site_pos('leftEndEffector'))
+      tcp_center = (finger_right + finger_left) / 2.0
+      obj = self._get_pos_objects()
+      # print("\nobj:", obj)
+      # print("self._target_pos:", self._target_pos)
+      return np.concatenate([tcp_center, obj, self._target_pos, self._target_pos]).astype(np.float32)
+
+    def get_expert_goals(self):
+        return None
+
+    def step(self, action):
+        obs, _, _, _ = super(SawyerDialTurnGoalsV2, self).step(action)
+        obj = obs[3:6]
+        target_pos = obs[6:9]
+
+        # print("obj:", obj)
+        # print("target_pos:", target_pos)
+        dist = np.linalg.norm(target_pos - obj)
+        # print("dist:", dist)
+        reward = float(dist <= 0.07)
+
+        return obs, reward, False, {}
+
+    def render(self, mode="rgb_array", size=(64, 64), hide_target=True):
+        if hide_target:
+            self.sim.data.site_xpos[0] = 1_000_000
+        img = self.sim.render(size[0], size[1], camera_name="corner2")
+        # img = np.flip(img, axis=0)
+        return img
+
+
+
+class SawyerLeverPullGoalsV2(
+    metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['lever-pull-v2']):
+    """Wrapper for the SawyerLeverPull environment."""
+
+    def __init__(self, random_resets=True):
+      self._lever_angle_desired = np.pi / 2.0
+      super(SawyerLeverPullGoalsV2, self).__init__()
+
+      if random_resets:
+          self._random_reset_space.low[:2] = np.array([-0.4, 0.7])
+          self._random_reset_space.high[:2] = np.array([0.4, 0.8])
+      else:
+          self._random_reset_space.low[:2] = np.array([0, 0.75])
+          self._random_reset_space.high[:2] = np.array([0, 0.75])
+
+      self._partially_observable = False
+      self._freeze_rand_vec = False
+      self._set_task_called = True
+      self._target_pos = np.zeros(3)  # We will overwrite this later.
+      # self._target_pos = np.array([-0.14660674,  0.71726966,  0.45])
+      self.reset()
+
+      if random_resets:
+          self._freeze_rand_vec = False  # Set False to randomize the goal position.
+      else:
+          self._freeze_rand_vec = True
+
+
+    def reset_model(self):
+      super(SawyerLeverPullGoalsV2, self).reset_model()
+      # self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
+      # self._target_pos = self._get_pos_objects().copy()
+      # self.data.set_joint_qpos('LeverAxis', np.random.uniform(0.0, 0.2)) ###???###
+      return self._get_obs()
+
+    @property
+    def observation_space(self):
+      return gym.spaces.Box(
+          low=np.full(14, -np.inf),
+          high=np.full(14, np.inf),
+          dtype=np.float32)
+
+    def _get_orig_obs(self):
+        return super(SawyerLeverPullGoalsV2, self)._get_obs()
+
+    def _get_obs(self):
+      finger_right, finger_left = (self._get_site_pos('rightEndEffector'),
+                                   self._get_site_pos('leftEndEffector'))
+      tcp_center = (finger_right + finger_left) / 2.0
+      obj = self._get_pos_objects()
+      lever_angle = -self.data.get_joint_qpos('LeverAxis')
+      lever_angle_desired = self._lever_angle_desired
+      # Arm position is same as lever position. Only use Z position of lever.
+      # print("\nlever_angle:", lever_angle)
+      # print("lever_angle_desired:", lever_angle_desired)
+      return np.concatenate([tcp_center, obj, [lever_angle], self._target_pos, self._target_pos, [lever_angle_desired]]).astype(np.float32)
+
+    def get_expert_goals(self):
+        return None
+
+    def step(self, action):
+        obs, _, _, _ = super(SawyerLeverPullGoalsV2, self).step(action)
+        lever_angle = obs[6]
+        lever_angle_desired = obs[13]
+        # print("lever_angle:", lever_angle)
+        # print("lever_angle_desired:", lever_angle_desired)
+
+
+        lever_error = abs(lever_angle - lever_angle_desired)
+        reward = (lever_error <= np.pi / 24)
+        # dist = abs(obs[3] - obs[7])
+        # reward = float(dist < 0.02)
+        return obs, reward, False, {}
+
+    def render(self, mode="rgb_array", size=(64, 64), hide_target=True):
+        if hide_target:
+            self.sim.data.site_xpos[0] = 1_000_000
+        img = self.sim.render(size[0], size[1], camera_name="corner2")
+        # img = np.flip(img, axis=0)
+        return img
+
+
 
 
 class SawyerWindow(
@@ -329,6 +615,7 @@ class SawyerWindow(
     self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
     self._target_pos = self._get_pos_objects().copy()
     self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
+    assert False
     return self._get_obs()
 
   @property
@@ -344,13 +631,86 @@ class SawyerWindow(
     tcp_center = (finger_right + finger_left) / 2.0
     obj = self._get_pos_objects()
     # Arm position is same as window position. Only use X position of window.
-    return np.concatenate([tcp_center, [obj[0]],
-                           self._target_pos,
-                           [self._target_pos[0]]]).astype(np.float32)
+    return np.concatenate([tcp_center, [obj[0]], self._target_pos, [self._target_pos[0]]]).astype(np.float32)
 
   def step(self, action):
     obs = super(SawyerWindow, self).step(action)
     return obs, 0.0, False, {}
+
+
+
+
+class SawyerWindowGoals(SawyerWindow):
+    def reset_model(self):
+      super(SawyerWindow, self).reset_model()
+      # self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
+      # self._target_pos = self._get_pos_objects().copy()
+      self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
+      # print("self._target_pos:", self._target_pos)
+
+      # camera_name = 'corner2'
+      # index = self.model.camera_name2id(camera_name)
+      # self.model.cam_fovy[index] = 17.0
+      # self.model.cam_pos[index][1] = -0.1
+      # self.model.cam_pos[index][2] = 1.1
+
+      return self._get_obs()
+
+    def get_expert_goals(self):
+        return None
+
+    def step(self, action):
+        obs, reward, done, info = super(SawyerWindowGoals, self).step(action)
+        dist = abs(obs[3] - obs[7])
+        # reward = float(dist < 0.02)
+        reward = float(dist < 0.05)
+        return obs, reward, done, info
+
+    def render(self, mode="rgb_array", height=64, width=64):
+        for ctx in self.sim.render_contexts:
+          ctx.opengl_context.make_context_current()
+
+        # self.sim.data.site_xpos[0] = 1_000_000
+        img = self.sim.render(height, width, camera_name="corner2")
+        # img = np.flip(img, axis=0)
+        return img
+
+    def _sample_goal(self):
+        pass
+
+
+class SawyerWindowImageMinimalGoals(SawyerWindowGoals):
+    def __init__(self, *args, **kwargs):
+        super(SawyerWindowImageMinimalGoals, self).__init__(*args, **kwargs)
+        camera_name = 'corner2'
+        index = self.model.camera_name2id(camera_name)
+        self.model.cam_fovy[index] = 17.0
+        self.model.cam_pos[index][1] = -0.1
+        self.model.cam_pos[index][2] = 1.1
+
+    @property
+    def observation_space(self):
+      return gym.spaces.Box(
+          low=np.full((64*64*6), 0),
+          high=np.full((64*64*6), 255),
+          dtype=np.uint8)
+
+    def image_obs(self):
+        self.sim.data.site_xpos[0] = 1_000_000
+        img = self.render(mode='rgb_array', height=64, width=64)
+        return img.flatten()
+
+    def reset_model(self):
+        super(SawyerWindowImageMinimalGoals, self).reset_model()
+        img = self.image_obs()
+        self._goal_img = np.zeros_like(img)
+        return np.concatenate([img, np.zeros_like(img)])
+
+    def step(self, *args, **kwargs):
+        obs, reward, done, info = super(SawyerWindowImageMinimalGoals, self).step(*args, **kwargs)
+        img = self.image_obs()
+        return np.concatenate([img, np.zeros_like(img)]), reward, done, info
+
 
 
 class SawyerBin(
@@ -405,6 +765,88 @@ class SawyerBin(
         low=np.full(2 * 7, -np.inf),
         high=np.full(2 * 7, np.inf),
         dtype=np.float32)
+
+
+class SawyerBinGoals(
+    metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['bin-picking-v2']):
+  """Wrapper for the SawyerBin environment."""
+
+  def __init__(self):
+    self._goal = np.zeros(3)
+    super(SawyerBinGoals, self).__init__()
+    self._partially_observable = False
+    self._freeze_rand_vec = False
+    self._set_task_called = True
+    self.reset()
+    self._freeze_rand_vec = False  # Set False to randomize the goal position.
+
+  def reset(self):
+    # super(SawyerBinGoals, self).reset()
+    # body_id = self.model.body_name2id('bin_goal')
+    # pos1 = self.sim.data.body_xpos[body_id].copy()
+    # pos1 += np.random.uniform(-0.05, 0.05, 3)
+    # pos2 = self._get_pos_objects().copy()
+    # t = np.random.random()
+    # self._goal = t * pos1 + (1 - t) * pos2
+    # self._goal[2] = np.random.uniform(0.03, 0.12)
+    # return self._get_obs()
+
+    super(SawyerBinGoals, self).reset()
+    # body_id = self.model.body_name2id('bin_goal')
+    # pos1 = self.sim.data.body_xpos[body_id].copy()
+    # pos1 += np.random.uniform(-0.05, 0.05, 3)
+    # pos2 = self._get_pos_objects().copy()
+    # t = np.random.random()
+    # self._goal = t * pos1 + (1 - t) * pos2
+    # self._goal[2] = np.random.uniform(0.03, 0.12)
+    self._goal = np.array([0.12, 0.7, 0.02])
+    return self._get_obs()
+
+  def step(self, action):
+    super(SawyerBinGoals, self).step(action)
+    dist = np.linalg.norm(self._goal - self._get_pos_objects())
+    r = float(dist < 0.05)  # Taken from metaworld
+    done = False
+    info = {}
+    return self._get_obs(), r, done, info
+
+  def _get_obs(self):
+    pos_hand = self.get_endeff_pos()
+    finger_right, finger_left = (
+        self._get_site_pos('rightEndEffector'),
+        self._get_site_pos('leftEndEffector')
+    )
+    gripper_distance_apart = np.linalg.norm(finger_right - finger_left)
+    gripper_distance_apart = np.clip(gripper_distance_apart / 0.1, 0., 1.)
+    obs = np.concatenate((pos_hand, [gripper_distance_apart],
+                          self._get_pos_objects()))
+    goal = np.concatenate([self._goal + np.array([0.0, 0.0, 0.03]),
+                           [0.4], self._goal])
+    return np.concatenate([obs, goal]).astype(np.float32)
+
+  @property
+  def observation_space(self):
+    return gym.spaces.Box(
+        low=np.full(2 * 7, -np.inf),
+        high=np.full(2 * 7, np.inf),
+        dtype=np.float32)
+
+  def get_expert_goals(self):
+      return None
+
+# class SawyerBinGoals(SawyerBin):
+#     def reset_model(self):
+      # super(SawyerBinGoals, self).reset()
+      # # body_id = self.model.body_name2id('bin_goal')
+      # # pos1 = self.sim.data.body_xpos[body_id].copy()
+      # # pos1 += np.random.uniform(-0.05, 0.05, 3)
+      # # pos2 = self._get_pos_objects().copy()
+      # # t = np.random.random()
+      # # self._goal = t * pos1 + (1 - t) * pos2
+      # # self._goal[2] = np.random.uniform(0.03, 0.12)
+      # self._goal = np.array([0.12, 0.7, 0.02])
+      # return self._get_obs()
+
 
 
 class SawyerDrawerImage(SawyerDrawer):
