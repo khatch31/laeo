@@ -224,6 +224,18 @@ class DistributedLayoutGoals:
         episode_files = sorted(episode_files, key=get_ep_no)
         # episode_files = sorted(episode_files, key=get_ep_no, reverse=True) # j = 0
 
+        # lens = []
+        # for episode_file in episode_files:
+        #     with open(episode_file, 'rb') as f:
+        #         episode = np.load(f, allow_pickle=True)
+        #         episode = {k: episode[k] for k in episode.keys()}
+        #     ep_len = len(episode["observation"])
+        #     print("ep_len:", ep_len)
+        #     lens.append(ep_len)
+        # print("np.amax(lens):", np.amax(lens))
+
+
+
         all_ep_idxs = np.arange(len(episode_files))
         np.random.shuffle(all_ep_idxs)
         val_ep_idxs = all_ep_idxs[:int(len(episode_files) * self._builder._config.val_size)]
@@ -240,8 +252,11 @@ class DistributedLayoutGoals:
             with open(episode_file, 'rb') as f:
                 episode = np.load(f, allow_pickle=True)
                 episode = {k: episode[k] for k in episode.keys()}
+                # episode = {k: np.concatenate((episode[k][:99], episode[k][-1:]), axis=0) for k in episode.keys()}
 
             assert len(episode["observation"]) == len(episode["step_type"]) == len(episode["action"])  == len(episode["discount"]) == len(episode["reward"])
+            # if len(episode["observation"]) > 303:
+            #     print("len(episode[\"observation\"]):", len(episode["observation"]))
             if use_image_obs:
                 assert len(episode["observation"]) == len(episode["image"])
 

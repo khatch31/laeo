@@ -20,7 +20,7 @@ from __future__ import print_function
 
 import os
 
-import ant_env
+# import ant_env
 import fetch_envs
 import gym
 # import sys; sys.path.append("/iris/u/khatch/metaworld_door")
@@ -28,10 +28,11 @@ import metaworld
 import numpy as np
 import point_env
 import point_env_fixed_goal
+import kitchen_envs
 
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
-import ceborl_envs
+# import ceborl_envs
 
 
 def euler2quat(euler):
@@ -132,7 +133,6 @@ def load(env_name):
       gym_env, obs_dim = ceborl_envs.get_env(task_name, image_obs="image" in env_name)
 
       return gym_env, obs_dim, max_episode_steps
-
   elif "fetch" in env_name:
       max_episode_steps = 50
       if "offline" in env_name:
@@ -235,7 +235,6 @@ def load(env_name):
 
       if "dense" in env_name:
           kwargs["dense_reward"] = True
-
   elif env_name.startswith('ant_'):
     _, map_name = env_name.split('_')
     assert map_name in ['umaze', 'medium', 'large']
@@ -273,6 +272,20 @@ def load(env_name):
       max_episode_steps = 100
     else:
       max_episode_steps = 50
+  elif "kitchen" in env_name:
+      assert "image" not in env_name
+      if "offline" in env_name:
+          env_name = env_name[:][len("offline_"):]
+          print("env_name:", env_name)
+
+      tasks_list = env_name.split("_")[-1].split("+")
+
+      CLASS = kitchen_envs.Kitchen
+      max_episode_steps = 280 # 100
+      kwargs["task"] = tasks_list
+      kwargs["size"] = (64, 64)
+      # kwargs["proprio"] = True
+      # kwargs["image"] = "image" in env_name
   else:
     raise NotImplementedError('Unsupported environment: %s' % env_name)
 
@@ -281,6 +294,7 @@ def load(env_name):
   gym_env = CLASS(**kwargs)  # pytype: disable=wrong-keyword-args
   obs_dim = gym_env.observation_space.shape[0] // 2
   print("gym_env:", gym_env)
+  print("kwargs:", kwargs)
   return gym_env, obs_dim, max_episode_steps
 
 

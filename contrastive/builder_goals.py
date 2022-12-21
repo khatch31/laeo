@@ -195,10 +195,12 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
           extras={
               'next_action': sample.data.action[1:],
           })
-      # Shift for the transpose_shuffle.
-      shift = tf.random.uniform((), 0, seq_len, tf.int32)
-      transition = tree.map_structure(lambda t: tf.roll(t, shift, axis=0),
-                                      transition)
+
+      if "offline_kitchen" not in self._config.env_name:
+          # Shift for the transpose_shuffle.
+          shift = tf.random.uniform((), 0, seq_len, tf.int32)
+          transition = tree.map_structure(lambda t: tf.roll(t, shift, axis=0),
+                                          transition)
       return transition
 
     if self._config.num_parallel_calls:
@@ -212,18 +214,27 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
           table=self._config.replay_table_name,
           max_in_flight_samples_per_worker=100)
       dataset = dataset.map(flatten_fn)
-      # transpose_shuffle
-      def _transpose_fn(t):
-        dims = tf.range(tf.shape(tf.shape(t))[0])
-        perm = tf.concat([[1, 0], dims[2:]], axis=0)
-        return tf.transpose(t, perm)
-      dataset = dataset.batch(self._config.batch_size, drop_remainder=True)
-      dataset = dataset.map(
-          lambda transition: tree.map_structure(_transpose_fn, transition))
-      dataset = dataset.unbatch()
-      # end transpose_shuffle
 
-      dataset = dataset.unbatch()
+      if "offline_kitchen" in self._config.env_name:
+          dataset = dataset.batch(self._config.batch_size, drop_remainder=True)
+          dataset = dataset.unbatch() #???
+          dataset.shuffle(self._config.batch_size * 10)
+          dataset = dataset.unbatch()
+      else:
+          # transpose_shuffle
+          def _transpose_fn(t):
+            dims = tf.range(tf.shape(tf.shape(t))[0])
+            perm = tf.concat([[1, 0], dims[2:]], axis=0)
+            return tf.transpose(t, perm)
+          dataset = dataset.batch(self._config.batch_size, drop_remainder=True)
+          dataset = dataset.map(
+              lambda transition: tree.map_structure(_transpose_fn, transition))
+          dataset = dataset.unbatch()
+          # end transpose_shuffle
+
+          dataset = dataset.unbatch()
+
+
       return dataset
     dataset = tf.data.Dataset.from_tensors(0).repeat()
     dataset = dataset.interleave(

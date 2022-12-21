@@ -159,6 +159,9 @@ def get_program(params):
   if env_name == 'offline_ant_umaze_diverse':
     # This environment terminates after 700 steps, but demos have 1000 steps.
     config.max_episode_steps = 1000
+  if "offline_kitchen" in env_name:
+      # This environment terminates after 280 steps, but demos have 410 steps.
+      config.max_episode_steps = 410
   network_factory = functools.partial(
       contrastive.make_networks, obs_dim=obs_dim, repr_dim=config.repr_dim,
       repr_norm=config.repr_norm, twin_q=config.twin_q,
