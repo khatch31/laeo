@@ -134,13 +134,17 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
         min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps
         max_replay_traj = n_episodes
 
-        min_replay_traj += 100
-        max_replay_traj += 100
+        if "offline_kitchen" not in self._config.env_name:
+            min_replay_traj += 100
+            max_replay_traj += 100
+
     # min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
     # max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
 
     print("\nmin_replay_traj:", min_replay_traj)
     print("max_replay_traj:", max_replay_traj, "\n")
+
+
 
     error_buffer = min_replay_traj * samples_per_insert_tolerance
     limiter = rate_limiters.SampleToInsertRatio(
@@ -216,10 +220,13 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
       dataset = dataset.map(flatten_fn)
 
       if "offline_kitchen" in self._config.env_name:
-          dataset = dataset.batch(self._config.batch_size, drop_remainder=True)
-          dataset = dataset.unbatch() #???
-          dataset.shuffle(self._config.batch_size * 10)
+          # dataset = dataset.batch(self._config.batch_size, drop_remainder=True)
+          # dataset = dataset.unbatch() #???
+          # dataset.shuffle(self._config.batch_size * 10)
+          # dataset = dataset.unbatch()
           dataset = dataset.unbatch()
+          dataset = dataset.shuffle(10_000)
+          print("In Kitchen no transpose shuffle")
       else:
           # transpose_shuffle
           def _transpose_fn(t):

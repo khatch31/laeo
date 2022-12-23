@@ -483,7 +483,6 @@ class ContrastiveLearnerGoals(acme.Learner):
     with jax.profiler.StepTraceAnnotation('step', step_num=self._counter):
       sample = next(self._iterator)
       transitions = types.Transition(*sample.data)
-
       val_sample = next(self._val_iterator)
       val_transitions = types.Transition(*val_sample.data)
 

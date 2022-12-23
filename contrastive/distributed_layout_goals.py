@@ -235,7 +235,6 @@ class DistributedLayoutGoals:
         # print("np.amax(lens):", np.amax(lens))
 
 
-
         all_ep_idxs = np.arange(len(episode_files))
         np.random.shuffle(all_ep_idxs)
         val_ep_idxs = all_ep_idxs[:int(len(episode_files) * self._builder._config.val_size)]
