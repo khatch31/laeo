@@ -111,8 +111,8 @@ flags.DEFINE_bool('mse_bc_loss', False, 'mse_bc_loss.')
 
 flags.DEFINE_integer('n_success_examples', 200, 'description.')
 
-
-
+flags.DEFINE_bool('log_video', False, 'description.')
+flags.DEFINE_integer('video_log_freq', 100, 'description.')
 
 
 @functools.lru_cache()
@@ -178,7 +178,8 @@ def get_program(params):
   # if "image" in env_name and "push" in env_name:
   #     print(f"environment._environment._environment._environment._rand_y: {environment._environment._environment._environment._rand_y}\n\n")
 
-  algo = "learner_goals"
+  # algo = "learner_goals"
+  algo = "laeo"
   if FLAGS.use_gcbc:
       algo = "bc"
   elif FLAGS.use_td:
@@ -306,6 +307,9 @@ def main(_):
   params["repr_norm"] = FLAGS.repr_norm
   params["mse_bc_loss"] = FLAGS.mse_bc_loss
 
+  params["log_video"] = FLAGS.log_video
+  params["video_log_freq"] = FLAGS.video_log_freq
+
 
   if 'ant_' in env_name:
     params['end_index'] = 2
@@ -340,6 +344,9 @@ def main(_):
         'samples_per_insert': 1_000_000,
         'samples_per_insert_tolerance_rate': 100_000_000.0,
         'random_goals': 0.0,
+
+        "min_replay_size":1000,
+        "max_replay_size":100_000_000,
     })
 
 

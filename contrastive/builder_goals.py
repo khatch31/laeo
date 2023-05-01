@@ -127,19 +127,19 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
         self._config.samples_per_insert_tolerance_rate
         * self._config.samples_per_insert)
 
-    if n_episodes is None:
-        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-        max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-    else:
-        min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps
-        max_replay_traj = n_episodes
+    # if n_episodes is None:
+    #     min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    #     max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    # else:
+    #     min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps
+    #     max_replay_traj = n_episodes
+    #
+    #     if "offline_kitchen" not in self._config.env_name:
+    #         min_replay_traj += 100
+    #         max_replay_traj += 100
 
-        if "offline_kitchen" not in self._config.env_name:
-            min_replay_traj += 100
-            max_replay_traj += 100
-
-    # min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
-    # max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    min_replay_traj = self._config.min_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
+    max_replay_traj = self._config.max_replay_size // self._config.max_episode_steps  # pylint: disable=line-too-long
 
     print("\nmin_replay_traj:", min_replay_traj)
     print("max_replay_traj:", max_replay_traj, "\n")

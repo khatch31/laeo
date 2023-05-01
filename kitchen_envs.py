@@ -34,14 +34,16 @@ OBS_ELEMENT_GOALS = {
 BONUS_THRESH = 0.3
 
 class Kitchen:
-    def __init__(self, task=['microwave'], size=(64, 64)):
+    def __init__(self, task=['microwave'], size=(64, 64), initial_states=None):
         # from .RPL.adept_envs import adept_envs
         sys.path.append("/iris/u/khatch/preliminary_experiments/model_based_offline_online/relay-policy-learning/adept_envs")
         import adept_envs
-        self._env = gym.make('kitchen_relax-v1')
+        # self._env = gym.make('kitchen_relax-v1')
+        self._env = gym.make('kitchen_relax_rpl-v1')
         self._task = task
         self._img_h = size[0]
         self._img_w = size[1]
+        self._initial_states = initial_states
         self.tasks_to_complete = ['bottom burner',
                                   'top burner',
                                   'light switch',
@@ -50,12 +52,15 @@ class Kitchen:
                                   'microwave',
                                   'kettle']
 
-        self._old_observation_space = self.observation_space
-        self._new_observation_space = gym.spaces.Box(
-            low=np.full((120,), -np.inf),
-            high=np.full((120,), np.inf),
-            dtype=np.float32)
-        self.observation_space = self._new_observation_space
+        # The original RPL env already includes a goal obs in the observation
+        # which is all zeros
+
+        # self._old_observation_space = self.observation_space
+        # self._new_observation_space = gym.spaces.Box(
+        #     low=np.full((120,), -np.inf),
+        #     high=np.full((120,), np.inf),
+        #     dtype=np.float32)
+        # self.observation_space = self._new_observation_space
 
     def __getattr__(self, attr):
         if attr == '_wrapped_env':
@@ -74,7 +79,7 @@ class Kitchen:
         #         obs_dict["proprio"] = obs[:9]
         # else:
         #     obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
-        obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
+        # obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
 
 
         reward = sum([reward_dict[obj] for obj in self._task])
@@ -84,9 +89,23 @@ class Kitchen:
         return obs, reward, done, info
 
     def reset(self, *args, **kwargs):
-        self.observation_space = self._old_observation_space
+        # self.observation_space = self._old_observation_space
         obs = self._env.reset(*args, **kwargs)
-        self.observation_space = self._new_observation_space
+        # self.observation_space = self._new_observation_space
+
+        # print("obs:", obs)
+
+        if self._initial_states is not None:
+            idxs = np.arange(self._initial_states["qpos"].shape[0])
+            idx = np.random.choice(idxs)
+
+            self._env.sim.data.qpos[:] = self._initial_states["qpos"][idx].copy()
+            self._env.sim.data.qvel[:] = self._initial_states["qvel"][idx].copy()
+            self._env.sim.forward()
+
+            obs = self._env.get_obs()
+
+            # Make a jupyternotebook to test the reset method
 
         # if self._image:
         #     img = self.render(mode='rgb_array', size=(self._img_h, self._img_w))
@@ -98,7 +117,10 @@ class Kitchen:
         # else:
         #     obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
         #     return obs
-        obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
+
+        # print("obs:", obs)
+        # obs = np.concatenate((obs, np.zeros_like(obs)), axis=0)
+        # print("obs:", obs)
         return obs
 
     def _compute_reward_dict(self, obs):

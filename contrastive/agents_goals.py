@@ -99,6 +99,10 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
               save=save_data,
               save_sim_state=save_sim_state)
       ]
+
+      if config.log_video:
+          eval_observers.append(contrastive_utils.VideoObserver(render_size=(512, 512), log_freq=config.video_log_freq, fps=20, video_format="mp4"))
+
       evaluator_factories = [
           distributed_layout_goals.default_evaluator_factory(
               environment_factory=environment_factory,

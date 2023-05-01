@@ -83,6 +83,8 @@ flags.DEFINE_bool('twin_q', True, 'description.')
 flags.DEFINE_bool('save_sim_state', False, 'description.')
 flags.DEFINE_bool('preload_buffer', False, 'description.')
 
+flags.DEFINE_bool('log_video', False, 'description.')
+flags.DEFINE_integer('video_log_freq', 100, 'description.')
 
 flags.DEFINE_integer('seed', 0, 'description.')
 
@@ -226,6 +228,8 @@ def main(_):
   params["seed"] = FLAGS.seed
   params["num_evaluators"] = FLAGS.num_evaluators
   params["preload_buffer"] = FLAGS.preload_buffer
+  params["log_video"] = FLAGS.log_video
+  params["video_log_freq"] = FLAGS.video_log_freq
 
 
 

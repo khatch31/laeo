@@ -334,6 +334,9 @@ def main(_):
         'samples_per_insert': 1_000_000,
         'samples_per_insert_tolerance_rate': 100_000_000.0,
         'random_goals': 0.0,
+
+        "min_replay_size":1000,
+        "max_replay_size":100_000_000,
     })
 
   # For the offline RL experiments, modify some hyperparameters.

@@ -100,6 +100,9 @@ class ContrastiveConfigGoals:
   mse_bc_loss: bool = False
   n_success_examples: int = 200
 
+  log_video: bool = False
+  video_log_freq: int = 100
+
 def target_entropy_from_env_spec(
     spec,
     target_entropy_per_dimension = None,

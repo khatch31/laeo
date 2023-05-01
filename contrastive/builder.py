@@ -104,8 +104,8 @@ class ContrastiveBuilder(builders.ActorLearnerBuilder):
       ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
     else:
       ACTOR = actors.GenericActor  # pylint: disable=invalid-name
-    return ACTOR(
-        actor_core, random_key, variable_client, adder, backend='cpu')
+    # return ACTOR(actor_core, random_key, variable_client, adder, backend='cpu')
+    return ACTOR(actor_core, random_key, variable_client, adder, backend='cpu', jit=True)
 
   def make_replay_tables(
       self,

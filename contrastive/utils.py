@@ -40,6 +40,7 @@ from glob import glob
 
 from jax.experimental import host_callback as hcb
 
+import wandb
 
 def obs_to_goal_1d(obs, start_index, end_index):
   assert len(obs.shape) == 1
@@ -125,6 +126,45 @@ class SuccessObserver(observers_base.EnvLoopObserver):
         'success_1000': np.mean(self._success[-1000:]),
     }
 
+class VideoObserver(observers_base.EnvLoopObserver):
+    def __init__(self, render_size=(128, 128), log_freq=1, fps=20, video_format="mp4"):
+      self._render_size = render_size
+      self._log_freq = log_freq
+      self._fps = fps
+      self._video_format = video_format
+      self._frames = []
+      self._ep_no = 1
+
+    def observe_first(self, env, timestep
+                      ):
+      """Observes the initial state."""
+
+      self._frames = []
+      if self._ep_no % self._log_freq == 0 or self._ep_no == 1:
+          image = env.render(offscreen=True, resolution=self._render_size)
+          self._frames.append(image)
+
+    def observe(self, env, timestep,
+                action):
+      """Records one environment step."""
+
+      if self._ep_no % self._log_freq == 0 or self._ep_no == 1:
+          image = env.render(offscreen=True, resolution=self._render_size)
+          self._frames.append(image)
+
+    def get_metrics(self):
+      """Returns metrics collected for the current episode."""
+
+      if self._ep_no % self._log_freq == 0 or self._ep_no == 1:
+          # https://docs.wandb.ai/guides/track/log/media
+          # If a numpy array is supplied we assume the dimensions are,
+          # in order: time, channels, width, height.
+          video = np.stack(self._frames, axis=0)
+          video = video.transpose(0, 3, 1, 2)
+          return {'video': wandb.Video(video, fps=self._fps, format=self._video_format)}
+      else:
+          return {}
+
 
 class LastNSuccessObserver(observers_base.EnvLoopObserver):
   """Measures success by whether any of the rewards in an episode are positive.
@@ -164,7 +204,6 @@ class LastNSuccessObserver(observers_base.EnvLoopObserver):
         f'last_{self._n}_success': float(np.sum(last_n_rewards) >= 1),
         f'last_{self._n}_success_1000': np.mean(self._success[-1000:]),
     }
-
 
 class SavingObserver(observers_base.EnvLoopObserver):
   """Measures success by whether any of the rewards in an episode are positive.
@@ -398,6 +437,7 @@ class InitiallyRandomActor(actors.GenericActor):
 
   def select_action(self,
                     observation):
+
     if (self._params['mlp/~/linear_0']['b'] == 0).all():
       shape = self._params['Normal/~/linear']['b'].shape
       rng, self._state = jax.random.split(self._state)

@@ -84,6 +84,9 @@ class ContrastiveConfig:
   max_checkpoints_to_keep: int = 1
   preload_buffer: bool = False
 
+  log_video: bool = False
+  video_log_freq: int = 100
+
 def target_entropy_from_env_spec(
     spec,
     target_entropy_per_dimension = None,

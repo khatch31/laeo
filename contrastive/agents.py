@@ -113,11 +113,18 @@ class DistributedContrastive(distributed_layout.DistributedLayout):
                   obs_dim=config.obs_dim,
                   start_index=config.start_index,
                   end_index=config.end_index),
+
               contrastive_utils.SavingObserver(
                   os.path.join(data_save_dir, f"evaluator_{i}"),
                   save=save_data,
                   save_sim_state=save_sim_state)
           ]
+
+          if config.log_video:
+              eval_observers.append(contrastive_utils.VideoObserver(render_size=(512, 512), log_freq=config.video_log_freq, fps=20, video_format="mp4"))
+
+
+
           evaluator_factories.append(
             distributed_layout.default_evaluator_factory(
                   environment_factory=environment_factory,

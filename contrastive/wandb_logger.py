@@ -56,7 +56,8 @@ class WANDBLogger(base.Logger):
         group=group_name,
         save_code=True,
         name=name,
-        resume=None # "allow",
+        resume=None, # "allow",
+        entity="laeo"
     )
 
   def write(self, values: base.LoggingData):
@@ -75,6 +76,8 @@ class WANDBLogger(base.Logger):
 
   def log(self, write_dict, step):
       wandb.log(write_dict, step=step)
+
+
       # if "learner/" in list(write_dict.keys())[0]:
       #     print(f"write_dict: {write_dict}, step: {step}")
 

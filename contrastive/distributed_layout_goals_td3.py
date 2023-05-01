@@ -217,8 +217,11 @@ class DistributedLayoutGoalsTD3:
         adder = self._builder.make_adder(replay, force_no_save=True)
         val_adder = self._builder.make_adder(val_replay, force_no_save=True)
 
-        if expert_goals is None:
-            expert_goals_list = []
+        # if expert_goals is None:
+        #     expert_goals_list = []
+        assert expert_goals is None
+        expert_goals_list = []
+        expert_goal_images_list = []
 
         episode_files = glob(os.path.join(self._data_load_dir, "**", "*.npz"), recursive=True)
         get_ep_no = lambda x:int(x.split("/")[-1].split(".")[0].split("-")[-1])
@@ -233,6 +236,13 @@ class DistributedLayoutGoalsTD3:
         val_examples_added = 0
         train_examples_added = 0
 
+        if "kitchen" in self._builder._config.env_name:
+            tasks_list = self._builder._config.env_name.split("_")[-1].split("+")
+            assert len(tasks_list) == 1
+            reward_key = "reward " + tasks_list[0]
+        else:
+            reward_key = "reward"
+
         # j = 0
         for ep_idx, episode_file in tqdm.tqdm(enumerate(episode_files), total=len(episode_files), desc="Loading episode files"):
             # j += 1
@@ -246,11 +256,15 @@ class DistributedLayoutGoalsTD3:
             if use_image_obs:
                 assert len(episode["observation"]) == len(episode["image"])
 
-            if expert_goals is None and episode["reward"].sum() > 0:
+            if expert_goals is None and episode[reward_key].sum() > 0:
                 if "success" in episode.keys():
                     success_idxs = np.nonzero(episode["success"])[0]
                 else:
-                    success_idxs = np.nonzero(episode["reward"])[0]
+                    success_idxs = np.nonzero(episode[reward_key])[0]
+
+                if "kitchen" in self._builder._config.env_name:
+                    success_idxs = success_idxs[:5]
+
                 # success_observations = episode["observation"][success_idxs]
                 for idx in success_idxs:
                     if use_image_obs:
@@ -258,6 +272,7 @@ class DistributedLayoutGoalsTD3:
                         expert_goals_list.append(episode["image"][idx][:self._obs_dim])#.astype(np.float32))
                     else:
                         expert_goals_list.append(episode["observation"][idx][:self._obs_dim])
+                    expert_goal_images_list.append(episode["image"][idx])
 
 
             for t in range(episode["observation"].shape[0]):
@@ -316,8 +331,13 @@ class DistributedLayoutGoalsTD3:
             idxs = idxs[:self._builder._config.n_success_examples]
             expert_goals = [expert_goals_list[i] for i in idxs]
             expert_goals = np.stack(expert_goals)
-            os.makedirs(os.path.join(os.getcwd(), "debug_images"), exist_ok=True)
-            np.save(os.path.join(os.getcwd(), "debug_images", "expert_goals"), expert_goals)
+            expert_goal_images = [expert_goal_images_list[i] for i in idxs]
+            expert_goal_images = np.stack(expert_goal_images)
+
+            expert_examples_dir = os.path.join(self._logdir, "expert_examples")
+            os.makedirs(expert_examples_dir, exist_ok=True)
+            np.save(os.path.join(expert_examples_dir, "expert_goals.npy"), expert_goals)
+            np.save(os.path.join(expert_examples_dir, "expert_goal_images.npy"), expert_goal_images)
 
 
     iterator = self._builder.make_dataset_iterator(replay)

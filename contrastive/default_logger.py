@@ -46,13 +46,18 @@ def make_default_logger(
   if not print_fn:
     print_fn = logging.info
   terminal_logger = terminal.TerminalLogger(label=label, print_fn=print_fn)
+  terminal_logger = filters.KeyFilter(terminal_logger, drop=["video"])
 
   loggers = [terminal_logger]
 
   if save_data:
     csv_logger = csv.CSVLogger(directory_or_file=logdir, label=label, add_uid=False)
+    csv_logger = filters.KeyFilter(csv_logger, drop=["video"])
     loggers.append(csv_logger)
-    loggers.append(tf_summary.TFSummaryLogger(os.path.join(logdir, "tf_logs"), label=label))
+
+    tf_logger = tf_summary.TFSummaryLogger(os.path.join(logdir, "tf_logs"), label=label)
+    tf_logger = filters.KeyFilter(tf_logger, drop=["video"])
+    loggers.append(tf_logger)
 
     # new_wandblogger = WANDBLogger(os.path.join(deepcopy(wandblogger["logdir"]), label),
     #                                deepcopy(wandblogger["params"]),

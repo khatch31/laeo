@@ -34,6 +34,8 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
 # import ceborl_envs
 
+KITCHEN_CHOPPED_DATA_DIR = "/iris/u/khatch/contrastive_rl/data/kitchen/RPL_chopped"
+
 
 def euler2quat(euler):
   """Convert Euler angles to quaternions."""
@@ -76,6 +78,12 @@ def load(env_name):
       elif env_name == "sawyer_drawer-goals":
         CLASS = SawyerDrawerGoals
         max_episode_steps = 150
+      elif env_name == 'sawyer_drawer_randomxpos':
+        CLASS = SawyerDrawerRandomXPos
+        max_episode_steps = 150
+      elif env_name == "sawyer_drawer_randomxpos-goals":
+        CLASS = SawyerDrawerRandomXPosGoals
+        max_episode_steps = 150
       elif env_name == 'sawyer_drawer_image':
         CLASS = SawyerDrawerImage
         max_episode_steps = 50
@@ -102,6 +110,12 @@ def load(env_name):
         max_episode_steps = 150
       elif env_name == 'sawyer_window-goals':
         CLASS = SawyerWindowGoals
+        max_episode_steps = 150
+      elif env_name == 'sawyer_window_randomxpos':
+        CLASS = SawyerWindowRandomXPos
+        max_episode_steps = 150
+      elif env_name == "sawyer_window_randomxpos-goals":
+        CLASS = SawyerWindowRandomXPosGoals
         max_episode_steps = 150
       elif env_name == "sawyer_window_image_minimal-goals":
         CLASS = SawyerWindowImageMinimalGoals
@@ -278,14 +292,25 @@ def load(env_name):
           env_name = env_name[:][len("offline_"):]
           print("env_name:", env_name)
 
-      tasks_list = env_name.split("_")[-1].split("+")
+      tasks_list = env_name.split("-")[-1].split("+")
 
       CLASS = kitchen_envs.Kitchen
-      max_episode_steps = 280 # 100
+      max_episode_steps = 80 # 70 # 280 # 100
       kwargs["task"] = tasks_list
       kwargs["size"] = (64, 64)
       # kwargs["proprio"] = True
       # kwargs["image"] = "image" in env_name
+
+      if "chopped" in env_name:
+          assert len(tasks_list) == 1, f"len(tasks_list): {len(tasks_list)}"
+          initial_states_file = os.path.join(KITCHEN_CHOPPED_DATA_DIR, "initial_states", tasks_list[0], "initial_states.npz")
+
+          with open(initial_states_file, 'rb') as f:
+            initial_states = np.load(f, allow_pickle=True)
+            initial_states = {k: initial_states[k] for k in initial_states.keys()}
+
+          kwargs["initial_states"] = initial_states
+
   else:
     raise NotImplementedError('Unsupported environment: %s' % env_name)
 
@@ -456,8 +481,194 @@ class SawyerDrawerGoals(SawyerDrawer):
         return obs, reward, done, info
 
 
-class SawyerDialTurnGoalsV2(
-    metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['dial-turn-v2']):
+class SawyerDrawerRandomXPos(metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['drawer-close-v2']):
+  """Wrapper for the SawyerDrawerRandomXPos environment."""
+
+  def __init__(self):
+    self._dist = []
+    self._dist_vec = []
+    super(SawyerDrawerRandomXPos, self).__init__()
+    self._random_reset_space.low[0] = 0
+    self._random_reset_space.high[0] = 0
+    self._partially_observable = False
+    self._freeze_rand_vec = False
+    self._set_task_called = True
+    self._target_pos = np.zeros(0)  # We will overwrite this later.
+
+
+
+    self._default_drawercase_link_pos = np.array([0., 0., 0.084])
+
+    self._preset_drawer_xpos = None
+
+    self.reset()
+    self._freeze_rand_vec = False  # Set False to randomize the goal position.
+
+
+
+  def reset_metrics(self):
+    self._dist_vec = []
+    self._dist = []
+
+  def _get_pos_objects(self):
+    return self.get_body_com('drawer_link') +  np.array([.0, -.16, 0.0])
+
+  def _sample_goal(self):
+      """
+      To work with render_dataset script
+      """
+      pass
+
+  @property
+  def _goal_img(self):
+      """
+      To work with render_dataset script
+      """
+      return np.zeros_like(self.image_obs())
+
+  def image_obs(self):
+      self.sim.data.site_xpos[0] = 1_000_000
+      # img = self.render(mode='rgb_array', height=64, width=64)
+      img = self.render(offscreen=True, resolution=(64, 64))
+      return img.flatten()
+
+
+  def set_drawer_xpos(self, drawer_xpos):
+      self._preset_drawer_xpos = drawer_xpos
+
+  def reset_model(self):
+    if self._dist:
+      self._dist_vec.append(self._dist)
+    self._dist = []
+
+    super(SawyerDrawerRandomXPos, self).reset_model()
+
+    # Move the x position of the entire drawer box
+    if self._preset_drawer_xpos is None:
+        new_drawercase_xpos = np.random.uniform(-0.4, 0.4)
+    else:
+        new_drawercase_xpos = self._preset_drawer_xpos
+    self._preset_drawer_xpos = None # Clear it so it doesn't stay at this for future episodes
+
+    new_drawercase_link_pos = self._default_drawercase_link_pos + np.array([new_drawercase_xpos, 0., 0.])
+    self.model.body_pos[self.model.body_name2id('drawercase_link')] = new_drawercase_link_pos
+    self.sim.forward()
+
+    # First set it to a random location, set as target pos
+    # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+    self._set_obj_xyz(np.random.uniform(-0.15, -0.1)) # Make it so that the drawer can't be randomly reset too closed
+    self._target_pos = self._get_pos_objects().copy()
+
+    # Then randomly reset it for real
+    # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+    self._set_obj_xyz(np.random.uniform(-0.15, -0.1)) # Make it so that the drawer can't be randomly reset too closed
+    assert False, f"Should not be called since goals one goes two layers back"
+
+    obs = self._get_obs()
+    drawer_xypos = obs[3:5]
+    assert np.allclose([drawer_xypos[0]],  [self._target_pos[0]]), f"drawer_xypos: {drawer_xypos}, self._target_pos: {self._target_pos}"
+    dist = np.linalg.norm(drawer_xypos - self._target_pos[:2])
+    self._dist.append(dist)
+    return obs
+
+  @property
+  def observation_space(self):
+    return gym.spaces.Box(
+        low=np.full(10, -np.inf), ###
+        high=np.full(10, np.inf), ###
+        dtype=np.float32)
+
+  def _get_obs(self):
+    finger_right, finger_left = (self._get_site_pos('rightEndEffector'),
+                                 self._get_site_pos('leftEndEffector'))
+    tcp_center = (finger_right + finger_left) / 2.0
+    obj = self._get_pos_objects()
+    # Arm position is same as drawer position. We only provide the drawer
+    # Y coordinate.
+    return np.concatenate([tcp_center, obj[:2], self._target_pos, self._target_pos[:2]]).astype(np.float32) ###
+
+  def step(self, action):
+    obs = super(SawyerDrawerRandomXPos, self).step(action)
+
+    drawer_pos = self._get_pos_objects()
+    # Check that self._get_pos_objects is returning same drawer pos as obs
+    drawer_xypos = obs[3:5]
+    assert np.allclose(drawer_xypos, drawer_pos[:2]), f"drawer_xypos: {drawer_xypos}, drawer_pos: {drawer_pos}"
+    # Check that the drawer_pos and the _target_pos have the same x position
+    assert np.allclose([drawer_pos[0]],  [self._target_pos[0]]), f"drawer_pos: {drawer_pos}, self._target_pos: {self._target_pos}"
+    dist = np.linalg.norm(drawer_pos - self._target_pos)
+    self._dist.append(dist)
+    reward = float(dist < 0.02)
+
+    info = {"drawer_xpos":drawer_xypos[0]}
+
+    return obs, reward, False, info
+
+
+class SawyerDrawerRandomXPosGoals(SawyerDrawerRandomXPos):
+    def reset_model(self):
+      if self._dist:
+          self._dist_vec.append(self._dist)
+      self._dist = []
+
+      super(SawyerDrawerRandomXPos, self).reset_model() # This goes back two layers
+
+      # self._target_pos = np.array([0, 0.73108633,  0.09])
+
+      # Move the x position of the entire drawer box
+      if self._preset_drawer_xpos is None:
+          new_drawercase_xpos = np.random.uniform(-0.4, 0.4)
+      else:
+          new_drawercase_xpos = self._preset_drawer_xpos
+      self._preset_drawer_xpos = None # Clear it so it doesn't stay at this for future episodes
+
+      new_drawercase_link_pos = self._default_drawercase_link_pos + np.array([new_drawercase_xpos, 0., 0.])
+      self.model.body_pos[self.model.body_name2id('drawercase_link')] = new_drawercase_link_pos
+      self.sim.forward()
+
+      # # First set it to a random location, set as target pos
+      # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+      # self._target_pos = self._get_pos_objects().copy()
+
+      self._target_pos[0] = new_drawercase_xpos
+
+      # Then randomly reset it for real
+      # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+      self._set_obj_xyz(np.random.uniform(-0.15, -0.1)) # Make it so that the drawer can't be randomly reset too closed
+      # print("self._target_pos:", self._target_pos)
+      obs = self._get_obs()
+      drawer_xypos = obs[3:5]
+      assert np.allclose([drawer_xypos[0]],  [self._target_pos[0]]), f"drawer_xypos: {drawer_xypos}, self._target_pos: {self._target_pos}"
+      dist = np.linalg.norm(drawer_xypos - self._target_pos[:2])
+      self._dist.append(dist)
+      return obs
+
+
+    def get_expert_goals(self):
+        return None
+
+    # def step(self, action):
+    #     obs, reward, done, info = super(SawyerDrawerRandomXPosGoals, self).step(action)
+    #
+    #     # obj = self._get_pos_objects()
+    #     # target_pos = obs[4:7]
+    #     # dist = np.linalg.norm(obj - target_pos)
+    #     # reward = float(dist < 0.01)
+    #
+    #     drawer_pos = self._get_pos_objects()
+    #     # Check that self._get_pos_objects is returning same drawer pos as obs
+    #     drawer_xypos = obs[3:5]
+    #     assert np.allclose(drawer_xypos, drawer_pos[:2]), f"drawer_xypos: {drawer_xypos}, drawer_pos: {drawer_pos}"
+    #     # Check that the drawer_pos and the _target_pos have the same x position
+    #     assert np.allclose([drawer_pos[0]],  [self._target_pos[0]]), f"drawer_pos: {drawer_pos}, self._target_pos: {self._target_pos}"
+    #     dist = np.linalg.norm(drawer_pos - self._target_pos)
+    #     reward = float(dist < 0.02)
+    #
+    #     return obs, reward, done, info
+
+
+
+class SawyerDialTurnGoalsV2(metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['dial-turn-v2']):
     """Wrapper for the SawyerLeverPull environment."""
 
     def __init__(self):
@@ -522,8 +733,6 @@ class SawyerDialTurnGoalsV2(
         img = self.sim.render(size[0], size[1], camera_name="corner2")
         # img = np.flip(img, axis=0)
         return img
-
-
 
 class SawyerLeverPullGoalsV2(
     metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['lever-pull-v2']):
@@ -607,6 +816,172 @@ class SawyerLeverPullGoalsV2(
         return img
 
 
+class SawyerWindowRandomXPos(
+    metaworld.envs.mujoco.env_dict.ALL_V2_ENVIRONMENTS['window-open-v2']):
+  """Wrapper for the SawyerWindow environment."""
+
+  def __init__(self):
+    self._dist = []
+    self._dist_vec = []
+    super(SawyerWindowRandomXPos, self).__init__()
+    self._random_reset_space.low[:2] = np.array([0.0, 0.8])
+    self._random_reset_space.high[:2] = np.array([0.0, 0.8])
+    self._partially_observable = False
+    self._freeze_rand_vec = False
+    self._set_task_called = True
+    self._target_pos = np.zeros(3)  # We will overwrite this later.
+
+    self._default_window_pos = np.array([0., 0.8, 0.16])
+    self._preset_window_xpos = None
+
+    self.reset()
+    self._freeze_rand_vec = False  # Set False to randomize the goal position.
+
+  def reset_metrics(self):
+    self._dist_vec = []
+    self._dist = []
+
+  def _sample_goal(self):
+      """
+      To work with render_dataset script
+      """
+      pass
+
+  @property
+  def _goal_img(self):
+      """
+      To work with render_dataset script
+      """
+      return np.zeros_like(self.image_obs())
+
+  def image_obs(self):
+      self.sim.data.site_xpos[0] = 1_000_000
+      # img = self.render(mode='rgb_array', height=64, width=64)
+      img = self.render(offscreen=True, resolution=(64, 64))
+      return img.flatten()
+
+  def set_window_xpos(self, window_xpos):
+      self._preset_window_xpos = window_xpos
+
+  def reset_model(self):
+    if self._dist:
+        self._dist_vec.append(self._dist)
+    self._dist = []
+
+    super(SawyerWindowRandomXPos, self).reset_model()
+
+
+    self._target_pos = np.array([0.5, 0.705, 0.16])
+
+    # Move the x position of the entire window box
+    if self._preset_window_xpos is None:
+        new_window_xpos = np.random.uniform(-0.4, 0.4)
+    else:
+        new_window_xpos = self._preset_window_xpos
+    self._preset_window_xpos = None # Clear it so it doesn't stay at this for future episodes
+
+    new_window_pos = self._default_window_pos + np.array([new_window_xpos, 0., 0.])
+    self.model.body_pos[self.model.body_name2id('window')] = new_window_pos
+    self.sim.forward()
+
+
+    self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.05))
+    self._target_pos = self._get_pos_objects().copy()
+    self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.05))
+    assert False
+
+    ###%%%###
+    obs = self._get_obs()
+    window_xypos = obs[3:5]
+    assert np.allclose([window_xypos[0]],  [self._target_pos[0]]), f"window_xypos: {window_xypos}, self._target_pos: {self._target_pos}"
+    dist = np.linalg.norm(window_xypos - self._target_pos[:2])
+    self._dist.append(dist)
+    return obs
+
+  @property
+  def observation_space(self):
+    return gym.spaces.Box(
+        low=np.full(10, -np.inf),
+        high=np.full(10, np.inf),
+        dtype=np.float32)
+
+  def _get_obs(self):
+    finger_right, finger_left = (self._get_site_pos('rightEndEffector'),
+                                 self._get_site_pos('leftEndEffector'))
+    tcp_center = (finger_right + finger_left) / 2.0
+    obj = self._get_pos_objects()
+    # Arm position is same as window position. Only use X position of window.
+    return np.concatenate([tcp_center, obj[:2], self._target_pos, self._target_pos[:2]]).astype(np.float32) ###
+
+  def step(self, action):
+    obs = super(SawyerWindowRandomXPos, self).step(action)
+
+    window_pos = self._get_pos_objects()
+    # Check that self._get_pos_objects is returning same window pos as obs
+    window_xypos = obs[3:5]
+    assert np.allclose(window_xypos, window_pos[:2]), f"window_xypos: {window_xypos}, window_pos: {window_pos}"
+    # Check that the window_pos and the _target_pos have the same x position
+    # assert np.allclose([window_pos[0]],  [self._target_pos[0]]), f"window_pos: {window_pos}, self._target_pos: {self._target_pos}"
+    dist = np.linalg.norm(window_pos - self._target_pos)
+    self._dist.append(dist)
+    reward = float(dist < 0.05)
+
+    info = {"window_xpos":window_xypos[0]}
+
+    return obs, reward, False, info
+
+  def render(self, mode="rgb_array", height=64, width=64):
+      for ctx in self.sim.render_contexts:
+        ctx.opengl_context.make_context_current()
+
+      # self.sim.data.site_xpos[0] = 1_000_000
+      img = self.sim.render(height, width, camera_name="corner2")
+      # img = np.flip(img, axis=0)
+      return img
+
+
+
+class SawyerWindowRandomXPosGoals(SawyerWindowRandomXPos):
+    def reset_model(self):
+      if self._dist:
+          self._dist_vec.append(self._dist)
+      self._dist = []
+
+      super(SawyerWindowRandomXPos, self).reset_model()
+
+      self._target_pos = np.array([0.5, 0.705, 0.16])
+
+
+      # Move the x position of the entire window box
+      if self._preset_window_xpos is None:
+          new_window_xpos = np.random.uniform(-0.4, 0.4)
+      else:
+          new_window_xpos = self._preset_window_xpos
+      self._preset_window_xpos = None # Clear it so it doesn't stay at this for future episodes
+
+      new_window_pos = self._default_window_pos + np.array([new_window_xpos, 0., 0.])
+      self.model.body_pos[self.model.body_name2id('window')] = new_window_pos
+      self.sim.forward()
+
+
+      # self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.2))
+      # self._target_pos = self._get_pos_objects().copy()
+
+      self._target_pos[0] = new_window_xpos + 0.15955165
+
+      self.data.set_joint_qpos('window_slide', np.random.uniform(0.0, 0.05))
+
+      ###%%%###
+      obs = self._get_obs()
+      window_xypos = obs[3:5]
+      # assert np.allclose([window_xypos[0]],  [self._target_pos[0]]), f"window_xypos: {window_xypos}, self._target_pos: {self._target_pos}"
+      dist = np.linalg.norm(window_xypos - self._target_pos[:2])
+      self._dist.append(dist)
+      return obs
+
+
+    def get_expert_goals(self):
+        return None
 
 
 class SawyerWindow(
@@ -880,7 +1255,7 @@ class SawyerDrawerImage(SawyerDrawer):
   def step(self, action):
     _, _, done, info = super(SawyerDrawerImage, self).step(action)
     y = self._get_pos_objects()[1]
-    # L1 distance between current and target drawer location.
+    # L1 distance between current and target window location.
     dist = abs(y - self._goal_y)
     self._dist.append(dist)
     r = float(dist < 0.04)
