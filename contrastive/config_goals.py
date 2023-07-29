@@ -102,6 +102,13 @@ class ContrastiveConfigGoals:
 
   log_video: bool = False
   video_log_freq: int = 100
+  max_expert_examples: bool = False
+  hack_expert_examples: bool = False
+  logsumexp_expert_examples: bool = False
+
+  revert_to_goal_conditioned: bool = False
+  goal_conditioned_actor: bool = False
+  avg_goal_actor: bool = False
 
 def target_entropy_from_env_spec(
     spec,

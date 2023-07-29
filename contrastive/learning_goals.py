@@ -220,16 +220,21 @@ class ContrastiveLearnerGoals(acme.Learner):
       else:
         state = obs[:, :config.obs_dim]
         # goal = obs[:, config.obs_dim:]
-        actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
 
-        batch_size = obs.shape[0]
-        idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
-        critic_goal = expert_goals[idxs]
-        # hcb.id_print(actor_goal, what="\n\nactor_goal")
-        # hcb.id_print(actor_goal.shape, what="actor_goal.shape")
-        # hcb.id_print(idxs, what="idxs")
-        # hcb.id_print(critic_goal, what="critic_goal")
-        # hcb.id_print(critic_goal.shape, what="critic_goal.shape")
+        if config.revert_to_goal_conditioned:
+            actor_goal = obs[:, config.obs_dim:]
+            critic_goal = actor_goal.copy()
+        else:
+            actor_goal = jnp.zeros_like(obs[:, config.obs_dim:])
+
+            batch_size = obs.shape[0]
+            idxs = jax.random.randint(key, (batch_size,), 0, expert_goals.shape[0])
+            critic_goal = expert_goals[idxs]
+            # hcb.id_print(actor_goal, what="\n\nactor_goal")
+            # hcb.id_print(actor_goal.shape, what="actor_goal.shape")
+            # hcb.id_print(idxs, what="idxs")
+            # hcb.id_print(critic_goal, what="critic_goal")
+            # hcb.id_print(critic_goal.shape, what="critic_goal.shape")
 
         if config.random_goals == 0.0:
           new_state = state
@@ -248,28 +253,92 @@ class ContrastiveLearnerGoals(acme.Learner):
           new_actor_goal = jnp.roll(actor_goal, 1, axis=0)
           new_critic_goal = jnp.roll(critic_goal, 1, axis=0)
 
+
+
+
         # new_obs = jnp.concatenate([new_state, new_goal], axis=1)
         new_actor_obs = jnp.concatenate([new_state, new_actor_goal], axis=1)
-        # hcb.id_print(new_actor_obs[0], what="new_actor_obs")
-        # hcb.id_print(new_actor_obs.shape, what="new_actor_obs.shape")
         # dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
-        dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
+
+        if config.revert_to_goal_conditioned:
+            # hcb.id_print(new_actor_obs, what="\nnew_actor_obs")
+            dist_params = networks.policy_network.apply(policy_params, new_actor_obs)
+        else:
+            dist_params = networks.policy_network.apply(policy_params, new_actor_obs[:, :config.obs_dim])
 
         action = networks.sample(dist_params, key)
         log_prob = networks.log_prob(dist_params, action)
 
-        new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
-        # hcb.id_print(new_critic_obs[0], what="new_critic_obs")
-        # hcb.id_print(new_critic_obs.shape, what="new_critic_obs.shape")
 
-        # add jnp.exp
-        # inverting actor loss?
 
-        q_action = networks.q_network.apply(
-            q_params, new_critic_obs, action)
+        if config.max_expert_examples:
+            # expert_goals = expert_goals.at[:].set(0) # COMMENT OUT
+            # expert_goals = expert_goals.at[13].set(1000) # COMMENT OUT
+            # hcb.id_print(expert_goals, what="\nexpert_goals")
+
+            # new_critic_goal = new_critic_goal.at[:-1].set(0)
+            # new_critic_goal = new_critic_goal.at[-1].set(1000)
+            # hcb.id_print(new_critic_goal, what="\nnew_critic_goal")
+            # new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
+            # qbob = networks.q_network.apply(q_params, new_critic_obs, action)
+            # # hcb.id_print(qbob, what="\nqbob")
+            # qbob = jnp.min(qbob, axis=-1)
+            # hcb.id_print(jnp.diag(qbob), what="\njnp.diag(qbob)")
+
+            expert_goals_tiled = jnp.tile(expert_goals, (batch_size, 1, 1)) # (batch_size, n_examples, obs_dim) = (1024, 50, 5)
+
+            def critic_vmap_fn(n_state, exp_tiled, act):
+                new_critic_obs = jnp.concatenate([n_state, exp_tiled], axis=1)
+                q_action = networks.q_network.apply(q_params, new_critic_obs, act)
+                return q_action
+
+            vmapped_critic = jax.vmap(critic_vmap_fn, (None, 1, None), 2)
+            q_action = vmapped_critic(new_state, expert_goals_tiled, action) # (batch_size, batch_size, n_examples, 2) = (1024, 1024, 50, 2)
+            # max_idxs = jnp.argmax(jnp.abs(q_action), axis=2)
+            q_action = jnp.max(q_action, axis=2) # (batch_size, batch_size, 2) = (1024, 1024, 2) # UNCOMMENT
+
+            # q_action = jnp.max(jnp.abs(q_action), axis=2) # (batch_size, batch_size, 2) = (1024, 1024, 2) # COMMENT OUT
+
+            # hcb.id_print(q_action, what="\nq_action")
+            # hcb.id_print(max_idxs, what="\nmax_idxs")
+            # hcb.id_print(max_idxs.shape, what="\nmax_idxs.shape")
+
+
+        elif config.logsumexp_expert_examples:
+            expert_goals_tiled = jnp.tile(expert_goals, (batch_size, 1, 1)) # (batch_size, n_examples, obs_dim) = (1024, 50, 5)
+
+            def critic_vmap_fn(n_state, exp_tiled, act):
+                new_critic_obs = jnp.concatenate([n_state, exp_tiled], axis=1)
+                q_action = networks.q_network.apply(q_params, new_critic_obs, act)
+                return q_action
+
+            vmapped_critic = jax.vmap(critic_vmap_fn, (None, 1, None), 2)
+            q_action = vmapped_critic(new_state, expert_goals_tiled, action) # (batch_size, batch_size, n_examples, obs_dim) = (1024, 1024, 50, 2)
+            q_action = jax.nn.logsumexp(q_action, axis=2) # (batch_size, batch_size, 2) = (1024, 1024, 2)
+        elif config.hack_expert_examples:
+            # hcb.id_print(new_state[:5, 3], what="\nnew_state[:5, 3]")
+            hacked_critic_goal = new_critic_goal.copy()
+            # hcb.id_print(hacked_critic_goal[:5, 3], what="(before) hacked_critic_goal[:5, 3]")
+            hacked_critic_goal = hacked_critic_goal.at[:, 3].set(new_state[:, 3])
+            # hcb.id_print(hacked_critic_goal[:5, 3], what="(after) hacked_critic_goal[:5, 3]")
+            # hcb.id_print(new_critic_goal.shape, what="new_critic_goal.shape")
+            # hcb.id_print(hacked_critic_goal.shape, what="hacked_critic_goal.shape")
+            new_critic_obs = jnp.concatenate([new_state, hacked_critic_goal], axis=1)
+            # hcb.id_print(new_state[:2], what="\nnew_state[:2]")
+            # hcb.id_print(new_critic_obs[:2], what="new_critic_obs[:2]")
+            # hcb.id_print(jnp.concatenate([new_state, new_critic_goal], axis=1)[:2], what="jnp.concatenate([new_state, new_critic_goal], axis=1)[:2]")
+
+            q_action = networks.q_network.apply(q_params, new_critic_obs, action)
+        else:
+            new_critic_obs = jnp.concatenate([new_state, new_critic_goal], axis=1)
+            # hcb.id_print(new_critic_obs, what="\nnew_critic_obs")
+            q_action = networks.q_network.apply(q_params, new_critic_obs, action)
+
         if len(q_action.shape) == 3:  # twin q trick
           assert q_action.shape[2] == 2
           q_action = jnp.min(q_action, axis=-1)
+
+          # hcb.id_print(jnp.diag(q_action), what="\njnp.diag(q_action)")
 
         if config.exp_q_action:
             # hcb.id_print(q_action, what="(before) q_action")

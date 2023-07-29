@@ -255,7 +255,6 @@ def make_networks(
   dummy_obs = utils.zeros_like(spec.observations)#.astype(np.float32)
   dummy_action = utils.add_batch_dim(dummy_action)
   dummy_obs = utils.add_batch_dim(dummy_obs)
-
   actor_dummy_obs = dummy_obs[:, :obs_dim] if slice_actor_goal else dummy_obs
 
   return ContrastiveNetworks(

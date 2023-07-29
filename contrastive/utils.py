@@ -30,8 +30,10 @@ from acme.wrappers import step_limit
 import dm_env
 import env_utils
 import jax
+import jax.numpy as jnp
 import numpy as np
 
+from collections import defaultdict
 
 
 import os
@@ -125,6 +127,61 @@ class SuccessObserver(observers_base.EnvLoopObserver):
         'success': float(np.sum(self._rewards) >= 1),
         'success_1000': np.mean(self._success[-1000:]),
     }
+
+class PerGoalSuccessObserver(observers_base.EnvLoopObserver):
+  """Measures success by whether any of the rewards in an episode are positive.
+  """
+
+  def __init__(self, in_distribution=None, interpolation=None, extrapolation=None):
+    self._in_distribution = in_distribution
+    self._interpolation = interpolation
+    self._extrapolation = extrapolation
+
+    self._rewards = defaultdict(list)
+    self._success = defaultdict(list)
+
+  def observe_first(self, env, timestep
+                    ):
+    """Observes the initial state."""
+    for key in self._rewards.keys():
+        if self._rewards[key]:
+            success = np.sum(self._rewards[key]) >= 1
+            self._success[key].append(success)
+        self._rewards[key] = []
+
+  def observe(self, env, timestep, action):
+    """Records one environment step."""
+
+    info = env.get_info()
+    # if "success" in info:
+    #     self._rewards.append(info["success"])
+    # else:
+    #     assert timestep.reward in [0, 1]
+    #     self._rewards.append(timestep.reward)
+    assert "success" not in info
+    assert timestep.reward in [0, 1]
+    key = env._target_pos[0]
+    self._rewards[key].append(timestep.reward)
+
+    if key in self._in_distribution:
+        self._rewards["in_distribution"].append(timestep.reward)
+    elif key in self._interpolation:
+        self._rewards["interpolation"].append(timestep.reward)
+    elif key in self._extrapolation:
+        self._rewards["extrapolation"].append(timestep.reward)
+
+  def get_metrics(self):
+    """Returns metrics collected for the current episode."""
+
+    metrics = {}
+    for key in self._rewards.keys():
+        metrics[f"success_{key}"] = float(np.sum(self._rewards[key]) >= 1)
+
+    for key in self._success.keys():
+        metrics[f"success_1000_{key}"] = np.mean(self._success[key][-1000:])
+
+    return metrics
+
 
 class VideoObserver(observers_base.EnvLoopObserver):
     def __init__(self, render_size=(128, 128), log_freq=1, fps=20, video_format="mp4"):
@@ -444,8 +501,8 @@ class InitiallyRandomActor(actors.GenericActor):
       action = jax.random.uniform(key=rng, shape=shape,
                                   minval=-1.0, maxval=1.0)
     else:
-      action, self._state = self._policy(self._params, observation,
-                                         self._state)
+      action, self._state = self._policy(self._params, observation, self._state)
+
     return utils.to_numpy(action)
 
 class NoGoalActor(actors.GenericActor):
@@ -534,4 +591,42 @@ class InitiallyRandomZeroGoalActor(actors.GenericActor):
             # print("\n\nnew_obs.shape:", new_obs.shape)
             # action, self._state = self._policy(self._params, new_obs, self._state)
             action, self._state = self._policy(self._params, new_obs, self._state)
+        return utils.to_numpy(action)
+
+class InitiallyRandomAvgGoalActor(actors.GenericActor):
+    def __init__(self, *args, obs_dim=None, goal_examples=None, **kwargs):
+        self._obs_dim = obs_dim
+        self._goal_examples = goal_examples
+        super().__init__(*args, **kwargs)
+
+    def select_action(self, observation):
+        if 'mlp/~/linear_0' in self._params:
+            layer_key = 'mlp/~/linear_0'
+        elif 'feedforward_mlp_torso/~/linear' in self._params:
+            layer_key = 'feedforward_mlp_torso/~/linear'
+        else:
+            raise ValueError(self._params.keys())
+
+        # if (self._params['mlp/~/linear_0']['b'] == 0).all():
+        if (self._params[layer_key]['b'] == 0).all():
+            if layer_key == 'mlp/~/linear_0':
+                shape = self._params['Normal/~/linear']['b'].shape
+            else:
+                shape = self._params['near_zero_initialized_linear']['b'].shape
+
+            rng, self._state = jax.random.split(self._state)
+            action = jax.random.uniform(key=rng, shape=shape, minval=-1.0, maxval=1.0)
+        else:
+            assert observation.shape[0] % 2 == 0
+            new_obs = observation.copy()
+            new_obs[self._obs_dim:] = 0
+            # hacked_critic_goal = hacked_critic_goal.at[:, 3].set(new_state[:, 3])
+            new_obs = jnp.tile(new_obs, (self._goal_examples.shape[0], 1))
+            # new_obs[:, self._obs_dim:] = self._goal_examples[:, :self._obs_dim]
+            new_obs = jnp.concatenate([new_obs[:, :self._obs_dim], self._goal_examples[:, :self._obs_dim]], axis=-1)
+            # hacked_critic_goal = hacked_critic_goal.at[:, 3].set(new_state[:, 3])
+
+            action, self._state = self._policy(self._params, new_obs, self._state)
+            action = action.mean(axis=0)
+
         return utils.to_numpy(action)

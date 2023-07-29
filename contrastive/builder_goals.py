@@ -40,6 +40,8 @@ from reverb import rate_limiters
 import tensorflow as tf
 import tree
 
+import numpy as np
+
 from contrastive.episode_saver_adder import EpisodeAdderSaver
 
 class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
@@ -105,17 +107,26 @@ class ContrastiveBuilderGoals(builders.ActorLearnerBuilder):
     assert variable_source is not None
     actor_core = actor_core_lib.batched_feed_forward_to_actor_core(
         policy_network)
-    variable_client = variable_utils.VariableClient(variable_source, 'policy',
-                                                    device='cpu')
+    variable_client = variable_utils.VariableClient(variable_source, 'policy', device='cpu')
     if self._config.use_random_actor:
       # ACTOR = contrastive_utils.InitiallyRandomActor  # pylint: disable=invalid-name
       ACTOR = contrastive_utils.InitiallyRandomNoGoalActor
       # ACTOR = contrastive_utils.InitiallyRandomZeroGoalActor
+
+      if self._config.goal_conditioned_actor:
+        ACTOR = contrastive_utils.InitiallyRandomActor
+        return ACTOR(actor_core, random_key, variable_client, adder, backend='cpu', jit=True)
+      elif self._config.avg_goal_actor:
+        ACTOR = contrastive_utils.InitiallyRandomAvgGoalActor
+        goal_examples_path = "/iris/u/khatch/contrastive_rl/env_data/drawer_goals_corrected.csv"
+        goal_examples = np.loadtxt(goal_examples_path, delimiter=",")
+        return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, goal_examples=goal_examples, backend='cpu', jit=True)
+
     else:
       # ACTOR = actors.GenericActor  # pylint: disable=invalid-name
       ACTOR = contrastive_utils.NoGoalActor
       # ACTOR = contrastive_utils.ZeroGoalActor
-    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=True)
+    return ACTOR(actor_core, random_key, variable_client, adder, obs_dim=self._config.obs_dim, backend='cpu', jit=False)
 
   def make_replay_tables(
       self,

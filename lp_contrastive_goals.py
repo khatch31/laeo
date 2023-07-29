@@ -114,6 +114,14 @@ flags.DEFINE_integer('n_success_examples', 200, 'description.')
 flags.DEFINE_bool('log_video', False, 'description.')
 flags.DEFINE_integer('video_log_freq', 100, 'description.')
 
+flags.DEFINE_bool('max_expert_examples', False, 'description.')
+flags.DEFINE_bool('hack_expert_examples', False, 'description.')
+flags.DEFINE_bool('logsumexp_expert_examples', False, 'description.')
+
+flags.DEFINE_bool('revert_to_goal_conditioned', False, 'description.')
+flags.DEFINE_bool('goal_conditioned_actor', False, 'description.')
+flags.DEFINE_bool('avg_goal_actor', False, 'description.')
+
 
 @functools.lru_cache()
 def get_env(env_name, start_index, end_index):
@@ -169,7 +177,7 @@ def get_program(params):
       hidden_layer_sizes=config.hidden_layer_sizes,
       actor_min_std=config.actor_min_std,
       use_td=config.use_td,
-      slice_actor_goal=True)
+      slice_actor_goal=not(config.goal_conditioned_actor or config.avg_goal_actor))
 
   expert_goals = environment.get_expert_goals()
   # print("\nexpert_goals:\n", expert_goals)
@@ -309,6 +317,13 @@ def main(_):
 
   params["log_video"] = FLAGS.log_video
   params["video_log_freq"] = FLAGS.video_log_freq
+  params["max_expert_examples"] = FLAGS.max_expert_examples
+  params["hack_expert_examples"] = FLAGS.hack_expert_examples
+  params["logsumexp_expert_examples"] = FLAGS.logsumexp_expert_examples
+
+  params["revert_to_goal_conditioned"] = FLAGS.revert_to_goal_conditioned
+  params["goal_conditioned_actor"] = FLAGS.goal_conditioned_actor
+  params["avg_goal_actor"] = FLAGS.avg_goal_actor
 
 
   if 'ant_' in env_name:

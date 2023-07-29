@@ -219,7 +219,7 @@ class DistributedLayoutGoals:
 
         # if expert_goals is None:
         #     expert_goals_list = []
-        assert expert_goals is None
+        # assert expert_goals is None
         expert_goals_list = []
         expert_goal_images_list = []
 

@@ -84,6 +84,9 @@ def load(env_name):
       elif env_name == "sawyer_drawer_randomxpos-goals":
         CLASS = SawyerDrawerRandomXPosGoals
         max_episode_steps = 150
+      elif env_name == "sawyer_drawer_fixedxpos-goals":
+        CLASS = SawyerDrawerFixedXPosGoals
+        max_episode_steps = 150
       elif env_name == 'sawyer_drawer_image':
         CLASS = SawyerDrawerImage
         max_episode_steps = 50
@@ -665,6 +668,60 @@ class SawyerDrawerRandomXPosGoals(SawyerDrawerRandomXPos):
     #     reward = float(dist < 0.02)
     #
     #     return obs, reward, done, info
+
+
+
+class SawyerDrawerFixedXPosGoals(SawyerDrawerRandomXPos):
+    def reset_model(self):
+      if self._dist:
+          self._dist_vec.append(self._dist)
+      self._dist = []
+
+      super(SawyerDrawerRandomXPos, self).reset_model() # This goes back two layers
+
+      # self._target_pos = np.array([0, 0.73108633,  0.09])
+
+      # Move the x position of the entire drawer box
+      if self._preset_drawer_xpos is None:
+          # in_distribution = np.array([-0.3, -0.2, 0.0, 0.1, 0.4])
+          # interpolation = np.array([-0.1, 0.2, 0.3])
+          # extrapolation = np.array([-0.5, -0.4, 0.5])
+          in_distribution = np.array([0.3, 0.2, 0.0, -0.1, -0.4])
+          interpolation = np.array([0.1, -0.2, -0.3])
+          extrapolation = np.array([0.5, 0.4, -0.5])
+          new_drawercase_xpos = np.random.choice(np.concatenate([in_distribution, interpolation, extrapolation], axis=0))
+      else:
+          new_drawercase_xpos = self._preset_drawer_xpos
+      self._preset_drawer_xpos = None # Clear it so it doesn't stay at this for future episodes
+
+      new_drawercase_link_pos = self._default_drawercase_link_pos + np.array([new_drawercase_xpos, 0., 0.])
+      self.model.body_pos[self.model.body_name2id('drawercase_link')] = new_drawercase_link_pos
+      self.sim.forward()
+
+      # # First set it to a random location, set as target pos
+      # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+      # self._target_pos = self._get_pos_objects().copy()
+
+      self._target_pos[0] = new_drawercase_xpos
+
+      # Then randomly reset it for real
+      # self._set_obj_xyz(np.random.uniform(-0.15, 0.0))
+      self._set_obj_xyz(np.random.uniform(-0.15, -0.1)) # Make it so that the drawer can't be randomly reset too closed
+      # print("self._target_pos:", self._target_pos)
+      obs = self._get_obs()
+      drawer_xypos = obs[3:5]
+      assert np.allclose([drawer_xypos[0]],  [self._target_pos[0]]), f"drawer_xypos: {drawer_xypos}, self._target_pos: {self._target_pos}"
+      dist = np.linalg.norm(drawer_xypos - self._target_pos[:2])
+      self._dist.append(dist)
+      return obs
+
+
+    def get_expert_goals(self):
+        goals_file = "env_data/drawer_goals_corrected.csv"
+        expert_goals = np.loadtxt(goals_file, delimiter=",")
+        assert self.observation_space.shape[0] % 2 == 0
+        expert_goals = expert_goals[:, :self.observation_space.shape[0] // 2]
+        return expert_goals
 
 
 

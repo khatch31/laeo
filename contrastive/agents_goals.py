@@ -29,6 +29,8 @@ from contrastive import utils as contrastive_utils
 
 import dm_env
 
+import numpy as np
+
 
 from contrastive.default_logger import make_default_logger
 
@@ -102,6 +104,12 @@ class DistributedContrastiveGoals(distributed_layout_goals.DistributedLayoutGoal
 
       if config.log_video:
           eval_observers.append(contrastive_utils.VideoObserver(render_size=(512, 512), log_freq=config.video_log_freq, fps=20, video_format="mp4"))
+
+      if "fixedxpos" in config.env_name:
+          in_distribution = np.array([0.3, 0.2, 0.0, -0.1, -0.4])
+          interpolation = np.array([0.1, -0.2, -0.3])
+          extrapolation = np.array([0.5, 0.4, -0.5])
+          eval_observers.append(contrastive_utils.PerGoalSuccessObserver(in_distribution=in_distribution, interpolation=interpolation, extrapolation=extrapolation))
 
       evaluator_factories = [
           distributed_layout_goals.default_evaluator_factory(
